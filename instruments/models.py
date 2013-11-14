@@ -8,6 +8,14 @@ import utils
 # Create your models here.
 
 
+COMMAND_TYPES = (
+    ('W', "Write"),
+    ('A', "Ask"),
+    ('B', "Ask Raw"),
+                 
+)
+
+
 class Parameter(models.Model):
     name = models.CharField(max_length = 128)
     description = models.TextField(default = "", blank = True)
@@ -20,6 +28,11 @@ class Parameter(models.Model):
 class Command(models.Model):
     name = models.CharField(max_length = 128)
     command_string = models.CharField(max_length = 1024)
+    
+    command_type = models.CharField(max_length = 1, choices = COMMAND_TYPES)
+    
+    
+    
     description = models.TextField(default = "", blank = True)
     parameters = models.ManyToManyField(Parameter, blank = True)
     
@@ -27,10 +40,17 @@ class Command(models.Model):
         f = Formatter()
         tokens = f.parse(self.command_string)
         for (_ , param_name, _ , _) in tokens:
-            param = Parameter(name = param_name) 
-            self.parameters.add(param)
+            if param_name is not None:
+                param = Parameter(name = param_name)
+                param.save()
+                self.parameters.add(param)
+    
     def pre_save(self):
         self.get_params()
+    
+    
+    def __call__(self, instrument, parameters):
+        pass
     def __unicode__(self):
         return self.name
 
