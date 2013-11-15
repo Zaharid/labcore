@@ -16,36 +16,30 @@ COMMAND_TYPES = (
 )
 
 
-class Parameter(models.Model):
-    name = models.CharField(max_length = 128)
-    description = models.TextField(default = "", blank = True)
-    default_value = models.CharField(max_length = 128, blank = True)
-    
-    def __unicode__(self):
-        return self.name
-        
+
 @utils.autoconnect
 class Command(models.Model):
     name = models.CharField(max_length = 128)
     command_string = models.CharField(max_length = 1024)
     
-    command_type = models.CharField(max_length = 1, choices = COMMAND_TYPES)
+    command_type = models.CharField(max_length = 1, choices = COMMAND_TYPES, 
+                                    default = 'A')
     
     
     
     description = models.TextField(default = "", blank = True)
-    parameters = models.ManyToManyField(Parameter, blank = True)
+    
     
     def get_params(self):
         f = Formatter()
         tokens = f.parse(self.command_string)
         for (_ , param_name, _ , _) in tokens:
             if param_name is not None:
-                param = Parameter(name = param_name)
+                param = Parameter(name = param_name, command = self)
                 param.save()
-                self.parameters.add(param)
+                
     
-    def pre_save(self):
+    def post_save(self):
         self.get_params()
     
     
@@ -53,6 +47,17 @@ class Command(models.Model):
         pass
     def __unicode__(self):
         return self.name
+        
+class Parameter(models.Model):
+    command = models.ForeignKey(Command, null = False)
+    name = models.CharField(max_length = 128)
+    default_value = models.CharField(max_length = 128, blank = True)
+    description = models.TextField(default = "", blank = True)
+    
+    
+    def __unicode__(self):
+        return self.name
+        
 
 
 

@@ -8,18 +8,8 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AlterField(
-            field = models.CharField(max_length=128, blank=True),
-            name = 'default_value',
-            model_name = 'parameter',
-        ),
-        migrations.AlterField(
-            field = models.TextField(default='', blank=True),
-            name = 'description',
-            model_name = 'parameter',
-        ),
-        migrations.AlterField(
-            field = models.TextField(default='', blank=True),
-            name = 'description',
+            field = models.CharField(default='A', max_length=1, choices=(('W', 'Write',), ('A', 'Ask',), ('B', 'Ask Raw',),)),
+            name = 'command_type',
             model_name = 'command',
         ),
     ]
