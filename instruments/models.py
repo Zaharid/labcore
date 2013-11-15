@@ -23,28 +23,68 @@ class Command(models.Model):
     command_string = models.CharField(max_length = 1024)
     
     command_type = models.CharField(max_length = 1, choices = COMMAND_TYPES, 
-                                    default = 'A')
+                                    blank = True)
     
     
     
     description = models.TextField(default = "", blank = True)
     
     
-    def get_params(self):
+    def save_params(self):
         f = Formatter()
         tokens = f.parse(self.command_string)
+        oldparams = Parameter.objects.filter(command = self)
+        oldparams.delete()
         for (_ , param_name, _ , _) in tokens:
             if param_name is not None:
                 param = Parameter(name = param_name, command = self)
                 param.save()
+        
                 
+    def make_callable(self, instrument):
+        
+        params = Parameter.objects.filter(command = self)
+        argnames = []
+        kwargdefaults = {}
+        for param in params:
+            if param.default_value:
+                kwargdefaults[param.name] = param.default_value
+            else:
+                argnames += [param.name]
+        
+        def f(*args, **kwargs):
+            argdict = {argname: arg 
+                for argname, arg in zip(argnames.argvalues)}
+                    
+            formatdict = argdict.update(kwargs)
+            instruction = self.command_string.format(**formatdict)
+            
+            if self.commaand_type == "W":
+                retval = instrument.device.write(instruction)
+            elif self.commaand_type == "A":
+                retval = instrument.device.ask(instruction)
+            elif self.commaand_type == "B":
+                retval = instrument.device.ask_raw(instruction)
+            
+            return retval
+            
+                
+                
+        f.__doc__ = self.description
+        
+    def pre_save(self):
+        print self.command_type
+        if not self.command_type:
+            if self.command_string.endswith('?'):
+                self.command_type = "A"
+            else:
+                self.command_type = "W"
     
     def post_save(self):
-        self.get_params()
+        self.save_params()
     
-    
-    def __call__(self, instrument, parameters):
-        pass
+
+
     def __unicode__(self):
         return self.name
         
