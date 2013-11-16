@@ -6,9 +6,9 @@ Created on Sat Nov 16 20:44:15 2013
 """
 
 class TestDevice(object):
-    def write(s):
+    def write(self, s):
         return None
-    def ask(s):
+    def ask(self, s):
         return s
-    def ask_raw(s):
+    def ask_raw(self, s):
         return s

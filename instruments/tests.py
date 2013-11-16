@@ -6,7 +6,7 @@ from django.test import TestCase
 
 class CommandTestCase(TestCase):
     def setUp(self):
-        Command.objects.create(name = "c#test", command_string = "xxx {p1}, {p2}",
+        Command.objects.create(name = "c#test", command_string = "xxx {p1}, {p2}?",
                                description = "Be good")
     def test_params_managed(self):
         c = Command.objects.get(name="c#test")
@@ -24,7 +24,7 @@ class CommandTestCase(TestCase):
     
     
         
-    def test_callable_help(self):
+    def test_callable(self):
         c = Command.objects.get(name="c#test")
         def ins():pass
         ins.device = TestDevice()
@@ -32,6 +32,7 @@ class CommandTestCase(TestCase):
         doclines =  f.__doc__.split('\n')
         self.assertEqual(doclines[0], c.description)
         self.assertEqual(doclines[2], c.command_string)
+        self.assertEqual(f("A", "B"), "xxx A, B?")
     
     def tearDown(self):
         print "Tear Down"

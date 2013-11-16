@@ -58,7 +58,7 @@ class Command(models.Model):
                 
     def make_callable(self, instrument):
         
-        params = Parameter.objects.filter(command = self)
+        params = self.parameter_set.all()
         argnames = []
         kwargdefaults = {}
         for param in params:
@@ -77,10 +77,11 @@ class Command(models.Model):
     
         def f(*args, **kwargs):
             argdict = {argname: arg 
-                for argname, arg in zip(argnames.argvalues)}
+                for argname, arg in zip(argnames,args)}
                     
-            formatdict = argdict.update(kwargs)
-            instruction = self.command_string.format(**formatdict)
+            argdict.update(kwargs)
+            
+            instruction = self.command_string.format(**argdict)
             
             retval = instrf(instruction)
             
