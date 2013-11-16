@@ -80,6 +80,7 @@ class Command(models.Model):
                 for argname, arg in zip(argnames,args)}
                     
             argdict.update(kwargs)
+            print self.command_string
             
             instruction = self.command_string.format(**argdict)
             

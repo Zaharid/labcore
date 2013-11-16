@@ -26,13 +26,21 @@ class CommandTestCase(TestCase):
         
     def test_callable(self):
         c = Command.objects.get(name="c#test")
+        p = c.parameters['p2']
+        p.default_value = 'C'
+        p.save()
+        c.save()
+        
         def ins():pass
         ins.device = TestDevice()
+        
+        
         f  =  c.make_callable(ins)
         doclines =  f.__doc__.split('\n')
         self.assertEqual(doclines[0], c.description)
         self.assertEqual(doclines[2], c.command_string)
         self.assertEqual(f("A", "B"), "xxx A, B?")
+        self.assertEqual(f("A"), "xxx A, C?")
     
     def tearDown(self):
         print "Tear Down"
