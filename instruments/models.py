@@ -3,8 +3,11 @@ from string import Formatter
 from django.db import models
 #from django.db.models import signals
 
+from zutils.utils import make_signature
+
 
 import utils
+
 # Create your models here.
 
 
@@ -29,17 +32,29 @@ class Command(models.Model):
     
     description = models.TextField(default = "", blank = True)
     
+    class ParamFinder(object):
+        def __init__(self, command):
+            self.command = command
+        def __getitem__(self, key):
+            return self.command.parameter_set.get(name = key)
+            
+    @property
+    def parameters(self):
+        return Command.ParamFinder(self)
+    
     
     def save_params(self):
         f = Formatter()
         tokens = f.parse(self.command_string)
-        oldparams = Parameter.objects.filter(command = self)
-        oldparams.delete()
+        
+        param_names = []
         for (_ , param_name, _ , _) in tokens:
             if param_name is not None:
-                param = Parameter(name = param_name, command = self)
-                param.save()
-        
+                self.parameter_set.get_or_create(name = param_name)
+                param_names += [param_name]
+            
+                
+        self.parameter_set.exclude(name__in = param_names).delete()
                 
     def make_callable(self, instrument):
         
@@ -51,7 +66,15 @@ class Command(models.Model):
                 kwargdefaults[param.name] = param.default_value
             else:
                 argnames += [param.name]
-        
+                
+        ct = self.command_type
+        if ct == "W":
+            instrf = instrument.device.write
+        elif ct == "A":
+            instrf = instrument.device.ask
+        elif ct == "B":
+            instrf = instrument.device.ask_raw
+    
         def f(*args, **kwargs):
             argdict = {argname: arg 
                 for argname, arg in zip(argnames.argvalues)}
@@ -59,21 +82,18 @@ class Command(models.Model):
             formatdict = argdict.update(kwargs)
             instruction = self.command_string.format(**formatdict)
             
-            if self.commaand_type == "W":
-                retval = instrument.device.write(instruction)
-            elif self.commaand_type == "A":
-                retval = instrument.device.ask(instruction)
-            elif self.commaand_type == "B":
-                retval = instrument.device.ask_raw(instruction)
+            retval = instrf(instruction)
             
             return retval
             
                 
                 
-        f.__doc__ = self.description
+        f.__doc__ = "%s\nThe query for this command is:\n%s"%(self.description,
+                                self.command_string)
+        return make_signature(f, argnames, kwargdefaults)
+        
         
     def pre_save(self):
-        print self.command_type
         if not self.command_type:
             if self.command_string.endswith('?'):
                 self.command_type = "A"
