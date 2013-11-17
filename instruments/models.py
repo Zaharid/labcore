@@ -60,12 +60,14 @@ class Command(models.Model):
         
         params = self.parameter_set.all()
         argnames = []
+        allnames = []
         kwargdefaults = {}
         for param in params:
             if param.default_value:
                 kwargdefaults[param.name] = param.default_value
             else:
                 argnames += [param.name]
+            allnames += [param.name]
                 
         ct = self.command_type
         if ct == "W":
@@ -77,10 +79,13 @@ class Command(models.Model):
     
         def f(*args, **kwargs):
             argdict = {argname: arg 
-                for argname, arg in zip(argnames,args)}
+                for argname, arg in zip(allnames, args)}
                     
+
+            
             argdict.update(kwargs)
-            print self.command_string
+            
+          
             
             instruction = self.command_string.format(**argdict)
             

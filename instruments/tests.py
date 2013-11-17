@@ -43,6 +43,5 @@ class CommandTestCase(TestCase):
         self.assertEqual(f("A"), "xxx A, C?")
     
     def tearDown(self):
-        print "Tear Down"
         Command.objects.get(name = "c#test").delete()
         
