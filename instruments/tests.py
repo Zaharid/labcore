@@ -70,3 +70,9 @@ class InstrumentTestcase(TestCase):
         instr.add_command(c2)
         self.assertEqual(instr.second_command('C', 'D'), "p3: C; p4:D?")
         
+        instr.create_command(name = "c3", command_string = "-", 
+                             description = "desc")
+        c3 = instr.commands.get(name = 'c3')
+        doclines =  instr.c3.__doc__.split('\n')
+        self.assertEqual(doclines[0], c3.description)
+        

@@ -152,10 +152,16 @@ class Instrument(models.Model):
 
     
     def add_command(self, command):
+        if not command.pk:
+            command.save()
         self.commands.add(command)
         self.make_command_function(command)
         
     
+    def create_command(self, *args, **kwargs):
+        c = Command(*args, **kwargs)        
+        self.add_command(c)
+        
     def make_interface(self):
         allcommands = self.commands.all()
         for command in allcommands:
@@ -167,7 +173,7 @@ class Instrument(models.Model):
         
     def post_init(self):
         #Execute if we have loaded the device and is already in the db
-        if self.pk and self.load_instrument():
+        if self.load_instrument() and self.pk:
              self.make_interface()
        
       
