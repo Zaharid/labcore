@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from instruments.models import Command
+from instruments.models import Command, Instrument
 from instruments.device_adapters import TestDevice
 from django.test import TestCase
 
@@ -44,4 +44,29 @@ class CommandTestCase(TestCase):
     
     def tearDown(self):
         Command.objects.get(name = "c#test").delete()
+        
+class InstrumentTestcase(TestCase):
+    def setUp(self):
+        instr = Instrument.objects.create(name = "test_instrument")
+        c = Command.objects.create(name = "my command",
+            command_string = "p1: {p1}; p2:{p2}?", 
+            description = "My test command")
+        c.save()
+                    
+        
+        instr.save()
+    
+    def test_command_callable(self):
+        instr = Instrument.objects.get(name = "test_instrument")
+        c = Command.objects.get(name = "my command")
+        instr.add_command(c)
+        
+        self.assertTrue(hasattr(instr, 'my_command'))
+        self.assertEqual(instr.my_command(p1='A', p2= 'B'), "p1: A; p2:B?")
+        
+        c2 = c = Command.objects.create(name = "second command",
+            command_string = "p3: {p3}; p4:{p4}?", 
+            description = "My other command")
+        instr.add_command(c2)
+        self.assertEqual(instr.second_command('C', 'D'), "p3: C; p4:D?")
         

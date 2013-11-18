@@ -7,6 +7,7 @@ from zutils.utils import make_signature
 
 
 import utils
+import device_adapters
 
 # Create your models here.
 
@@ -138,7 +139,7 @@ class Interface(models.Model):
 class Instrument(models.Model):
 
     name = models.CharField(max_length = 256)
-    interface = models.ForeignKey(Interface)
+    #interface = models.ForeignKey(Interface)
     commands = models.ManyToManyField(Command)
     
     def make_command_function(self, command):
@@ -150,9 +151,13 @@ class Instrument(models.Model):
             raise ValueError("Name %s is already an instrument attribute")
 
     
+    def add_command(self, command):
+        self.commands.add(command)
+        self.make_command_function(command)
+        
     
     def make_interface(self):
-        allcommands = self.commands_set.all()
+        allcommands = self.commands.all()
         for command in allcommands:
             self.make_command_function(command)
         
@@ -161,10 +166,18 @@ class Instrument(models.Model):
         return self.name
         
     def post_init(self):
-       self.load_instrument()
-       self.make_interface()
+        #Execute if we have loaded the device and is already in the db
+        if self.pk and self.load_instrument():
+             self.make_interface()
+       
+      
+       
+
         
     def load_instrument(self):
-         print self.name
+         print self.name + " LOADED"
+         #TODO: do right
+         self.device = device_adapters.TestDevice()
+         return True
     
     

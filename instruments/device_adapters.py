@@ -4,6 +4,7 @@ Created on Sat Nov 16 20:44:15 2013
 
 @author: zah
 """
+import usbtmc
 
 class TestDevice(object):
     def write(self, s):
@@ -12,3 +13,6 @@ class TestDevice(object):
         return s
     def ask_raw(self, s):
         return s
+
+class USBDevice(usbtmc.Instrument):
+    pass
