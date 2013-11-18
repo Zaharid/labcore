@@ -141,11 +141,28 @@ class Instrument(models.Model):
     interface = models.ForeignKey(Interface)
     commands = models.ManyToManyField(Command)
     
+    def make_command_function(self, command):
+        attrname = utils.normalize_name(command.name)
+        if not hasattr(self, attrname):
+            commandcall = command.make_callable(self)            
+            setattr(self, attrname, commandcall)
+        else:
+            raise ValueError("Name %s is already an instrument attribute")
+
+    
+    
+    def make_interface(self):
+        allcommands = self.commands_set.all()
+        for command in allcommands:
+            self.make_command_function(command)
+        
+    
     def __unicode__(self):
         return self.name
         
     def post_init(self):
        self.load_instrument()
+       self.make_interface()
         
     def load_instrument(self):
          print self.name

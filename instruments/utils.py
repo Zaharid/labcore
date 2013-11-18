@@ -8,6 +8,8 @@ import inspect
 from functools import wraps
 from django.db.models import signals
 
+import re
+
 def autoconnect(cls):
     """ 
     Class decorator that automatically connects pre_save / post_save signals on 
@@ -29,6 +31,13 @@ def autoconnect(cls):
         
     return cls 
 
+def normalize_name(name):
+    name = re.sub(r"\ ", '_', name)
+    if not (re.match("^[a-zA-Z][a-zA-Z0-9_]*$", name)):
+        raise ValueError("The identifier '%s' is not a valid command name"%name)
+    return name
+
+    
 #==============================================================================
 #     if hasattr(cls, 'pre_save'):
 #         cls.pre_save = connect(signals.pre_save, cls.pre_save)
