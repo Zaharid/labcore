@@ -8,7 +8,7 @@ from zutils.utils import make_signature
 
 
 import utils
-import device_adapters
+import device_comm
 
 # Create your models here.
 
@@ -140,6 +140,7 @@ class Interface(models.Model):
 class Instrument(models.Model):
 
     name = models.CharField(max_length = 256)
+    device_id = models.CharField(max_length = 256, null = True)
     #interface = models.ForeignKey(Interface)
     commands = models.ManyToManyField(Command)
     
@@ -172,19 +173,29 @@ class Instrument(models.Model):
     def __unicode__(self):
         return self.name
         
-    def post_init(self):
-        #Execute if we have loaded the device and is already in the db
-        if self.load_instrument() and self.pk:
-             self.make_interface()
-       
-      
-       
-
+#==============================================================================
+#     def post_init(self):
+#         #Execute if we have loaded the device and is already in the db
+#         if self.load_instrument() and self.pk:
+#              self.make_interface()
+#==============================================================================
+    
+    def associate(self, device):
+        self.device = device
+        self.make_interface()
+        
+    
         
     def load_instrument(self):
-         print self.name + " LOADED"
-         #TODO: do right
-         self.device = device_adapters.TestDevice()
-         return True
+        allins = device_comm.find_all()
+        if self.device_id in allins:
+            self.device = allins[self.device_id]
+            return True
+        else:
+            return False
+            
+        
+         
+        
     
     
