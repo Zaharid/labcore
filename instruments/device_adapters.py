@@ -7,15 +7,23 @@ Created on Sat Nov 16 20:44:15 2013
 import usbtmc
 
 class BaseDevice(object):
-    def __init__(self):
-        self.idn = self.ask("*idn?")
+    def identify(self):
+        try:
+            m = self.model
+        except AttributeError:
+            self.idn = self.ask("*idn?")
+            self.model = ",".join(self.idn.split(',')[0:2])
+            m = self.model
+        return (m, self)
     
-    def get_model(self):
-        pass
-    def get_serial_number(self):
-        pass
+    @classmethod
+    def get_instruments(cls):
+        return [dev.identify() for dev in cls.list_instruments()]
 
-class TestDevice(object):
+
+class TestDevice(BaseDevice):
+    def __init__(self):
+        self.model = "TEST DEVICE"
     def write(self, s):
         return None
         
@@ -24,6 +32,14 @@ class TestDevice(object):
         
     def ask_raw(self, s):
         return s
+        
+    @classmethod
+    def list_instruments(cls):
+        return [TestDevice()]
 
-class USBDevice(usbtmc.Instrument):
-    pass
+class USBDevice(usbtmc.Instrument, BaseDevice):
+    @classmethod    
+    def list_instruments(cls):
+        devices = usbtmc.list_devices()
+        return [USBDevice(dev) for dev in devices]
+

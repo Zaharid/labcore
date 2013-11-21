@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from string import Formatter
 
 from django.db import models
