@@ -80,6 +80,7 @@ class Command(models.Model):
             instrf = instrument.device.ask_raw
     
         def f(*args, **kwargs):
+            
             argdict = {argname: arg 
                 for argname, arg in zip(allnames, args)}
                     
@@ -87,6 +88,7 @@ class Command(models.Model):
             
             argdict.update(kwargs)
             
+            print("Executing %s" % self.command_string)
           
             
             instruction = self.command_string.format(**argdict)
@@ -99,6 +101,8 @@ class Command(models.Model):
                 
         f.__doc__ = "%s\nThe query for this command is:\n%s"%(self.description,
                                 self.command_string)
+                                
+        print ("Making callable for %s" % self.command_string)
         return make_signature(f, argnames, kwargdefaults)
         
         
