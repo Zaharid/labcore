@@ -78,26 +78,37 @@ class Command(models.Model):
             instrf = instrument.device.ask
         elif ct == "B":
             instrf = instrument.device.ask_raw
+        
+        #f_factory is needed so that variables get bundled in f.
+        def f_factory(command_string, loc_instrf, loc_argnames):
+            print ("locals: \n %s"%locals())
     
-        def f(*args, **kwargs):
-            
-            argdict = {argname: arg 
-                for argname, arg in zip(allnames, args)}
-                    
-
-            
-            argdict.update(kwargs)
-            
-            print("Executing %s" % self.command_string)
-          
-            
-            instruction = self.command_string.format(**argdict)
-            
-            retval = instrf(instruction)
-            
-            return retval
+            def f(*args, **kwargs):
             
                 
+                
+                argdict = {argname: arg 
+                    for argname, arg in zip(loc_argnames, args)}
+                        
+    
+                
+                argdict.update(kwargs)
+                print (loc_instrf)
+                
+                print("Executing %s" % command_string)
+              
+                
+                instruction = command_string.format(**argdict)
+                
+                retval = loc_instrf(instruction)
+                
+                return retval
+            
+            return f
+            
+        s = self.command_string
+        print s
+        f = f_factory(s, instrf, argnames)        
                 
         f.__doc__ = "%s\nThe query for this command is:\n%s"%(self.description,
                                 self.command_string)
@@ -150,11 +161,11 @@ class Instrument(models.Model):
     
     def make_command_function(self, command):
         attrname = utils.normalize_name(command.name)
-        if not hasattr(self, attrname):
-            commandcall = command.make_callable(self)            
-            setattr(self, attrname, commandcall)
-        else:
-            raise ValueError("Name %s is already an instrument attribute")
+        #if not hasattr(self, attrname):
+        commandcall = command.make_callable(self)            
+        setattr(self, attrname, commandcall)
+        #else:
+        #    raise ValueError("Name %s is already an instrument attribute")
 
     
     def add_command(self, command):
