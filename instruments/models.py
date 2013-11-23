@@ -2,8 +2,8 @@
 from string import Formatter
 
 from django.db import models
-#from django.contrib.contenttypes.models import ContentType
-#from django.contrib.contenttypes import generic
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes import generic
 #from django.db.models import signals
 
 from zutils.utils import make_signature
@@ -27,19 +27,32 @@ COMMAND_TYPES = (
 class BaseInstrument(models.Model):
     name = models.CharField(max_length = 256)
     base_instrument = models.ForeignKey('self', null = True)
+    commands = generic.GenericRelation('Command')
     
     def add_command(self, command):
+        if not self.pk:
+            self.save()
         if not command.pk:
+            command.instrument = self
             command.save()
-        self.commands.add(command)
-        self.make_command_function(command)
+        
+
         if self.base_instrument:
-            self.base_instrument.add_command()
+            self.base_instrument.add_command(command)
         
     
     def create_command(self, *args, **kwargs):
         c = Command(*args, **kwargs)        
         self.add_command(c)
+        
+    
+    def post_save(self):
+        print "patata"
+        if self.base_instrument:
+            for command in self.base_instrument.commands.all():
+                command.pk = None
+                command.instrument = self
+                self.add_command(command)
     
     def __unicode__(self):
         return self.name
@@ -61,7 +74,10 @@ class Instrument(BaseInstrument):
         #else:
         #    raise ValueError("Name %s is already an instrument attribute")
 
-    
+    def add_command(self, command):
+        
+        super(BaseInstrument, self).add_command(self, command)
+        self.make_command_function(command)
 
 
     def make_interface(self):
@@ -71,6 +87,7 @@ class Instrument(BaseInstrument):
         
     
         
+
     def post_init(self):
         #Execute if we have loaded the device and is already in the db
         if self.load_instrument() and self.pk:
@@ -89,23 +106,27 @@ class Instrument(BaseInstrument):
             return False
 
 
+#==============================================================================
+# @utils.autoconnect
+# class BaseCommand(models.Model):
+#     
+#                                 
+#     base_instrument = models.ForeignKey(BaseInstrument)
+#==============================================================================
+
 @utils.autoconnect
-class BaseCommand(models.Model):
+class Command(models.Model):
     name = models.CharField(max_length = 128)
     command_string = models.CharField(max_length = 1024)
     
     command_type = models.CharField(max_length = 1, choices = COMMAND_TYPES, 
                                     blank = True)
-                                
-    base_instrument = models.ForeignKey(BaseInstrument)
-
-@utils.autoconnect
-class Command(BaseCommand):
-    
                                     
                                     
-    #instrument can be I                                
-    instrument = models.ForeignKey()
+    #instrument can be I   
+    content_type = models.ForeignKey(ContentType)                                
+    object_id = models.PositiveIntegerField()                                
+    instrument = generic.GenericForeignKey()
     
     
         
@@ -212,9 +233,25 @@ class Parameter(models.Model):
     def __unicode__(self):
         return self.name
 
-
-            
-        
+#==============================================================================
+# def command_to_base(command):
+#     bc = BaseCommand()
+#     _transvase_commands(command, bc)
+#     return bc
+# 
+# def base_to_command(base_command):
+#     c = Command()
+#     _transvase_commands(base_command, c)
+#     return c
+#     
+# 
+# def _transvase_commands(from_command, to_command):
+#     from_command.name = to_command.name
+#     from_command.command_string = to_command.command_string
+#     from_command.description = to_command.description
+#     from_command.command_type = to_command.command_type
+#==============================================================================
+    
          
         
     
