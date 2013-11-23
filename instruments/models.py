@@ -2,6 +2,8 @@
 from string import Formatter
 
 from django.db import models
+#from django.contrib.contenttypes.models import ContentType
+#from django.contrib.contenttypes import generic
 #from django.db.models import signals
 
 from zutils.utils import make_signature
@@ -21,17 +23,92 @@ COMMAND_TYPES = (
 )
 
 
+@utils.autoconnect
+class BaseInstrument(models.Model):
+    name = models.CharField(max_length = 256)
+    base_instrument = models.ForeignKey('self', null = True)
+    
+    def add_command(self, command):
+        if not command.pk:
+            command.save()
+        self.commands.add(command)
+        self.make_command_function(command)
+        if self.base_instrument:
+            self.base_instrument.add_command()
+        
+    
+    def create_command(self, *args, **kwargs):
+        c = Command(*args, **kwargs)        
+        self.add_command(c)
+    
+    def __unicode__(self):
+        return self.name
+
+
+class Instrument(BaseInstrument):
+
+    
+    device_id = models.CharField(max_length = 256, null = True)
+    
+    #interface = models.ForeignKey(Interface)
+    #commands = models.ManyToManyField(Command)
+    
+    def make_command_function(self, command):
+        attrname = utils.normalize_name(command.name)
+        #if not hasattr(self, attrname):
+        commandcall = command.make_callable(self)            
+        setattr(self, attrname, commandcall)
+        #else:
+        #    raise ValueError("Name %s is already an instrument attribute")
+
+    
+
+
+    def make_interface(self):
+        allcommands = self.commands.all()
+        for command in allcommands:
+            self.make_command_function(command)
+        
+    
+        
+    def post_init(self):
+        #Execute if we have loaded the device and is already in the db
+        if self.load_instrument() and self.pk:
+             self.make_interface()
+    
+    def associate(self, device):
+        self.device = device
+        self.make_interface()
+
+    def load_instrument(self):
+        allins = device_comm.find_all()
+        if self.device_id in allins:
+            self.device = allins[self.device_id]
+            return True
+        else:
+            return False
+
 
 @utils.autoconnect
-class Command(models.Model):
+class BaseCommand(models.Model):
     name = models.CharField(max_length = 128)
     command_string = models.CharField(max_length = 1024)
     
     command_type = models.CharField(max_length = 1, choices = COMMAND_TYPES, 
                                     blank = True)
+                                
+    base_instrument = models.ForeignKey(BaseInstrument)
+
+@utils.autoconnect
+class Command(BaseCommand):
+    
+                                    
+                                    
+    #instrument can be I                                
+    instrument = models.ForeignKey()
     
     
-    
+        
     description = models.TextField(default = "", blank = True)
     
     class ParamFinder(object):
@@ -81,23 +158,16 @@ class Command(models.Model):
         
         #f_factory is needed so that variables get bundled in f.
         def f_factory(command_string, loc_instrf, loc_argnames):
-            print ("locals: \n %s"%locals())
-    
+
             def f(*args, **kwargs):
-            
-                
-                
+    
                 argdict = {argname: arg 
                     for argname, arg in zip(loc_argnames, args)}
                         
-    
+
                 
                 argdict.update(kwargs)
-                print (loc_instrf)
-                
-                print("Executing %s" % command_string)
-              
-                
+
                 instruction = command_string.format(**argdict)
                 
                 retval = loc_instrf(instruction)
@@ -107,7 +177,7 @@ class Command(models.Model):
             return f
             
         s = self.command_string
-        print s
+       
         f = f_factory(s, instrf, argnames)        
                 
         f.__doc__ = "%s\nThe query for this command is:\n%s"%(self.description,
@@ -141,74 +211,8 @@ class Parameter(models.Model):
     
     def __unicode__(self):
         return self.name
-        
 
 
-
-class Interface(models.Model):
-    name = models.CharField(max_length = 128)
-    module = models.CharField(max_length = 128)
-    def __unicode__(self):
-        return self.name
-
-@utils.autoconnect
-class Instrument(models.Model):
-
-    name = models.CharField(max_length = 256)
-    device_id = models.CharField(max_length = 256, null = True)
-    #interface = models.ForeignKey(Interface)
-    commands = models.ManyToManyField(Command)
-    
-    def make_command_function(self, command):
-        attrname = utils.normalize_name(command.name)
-        #if not hasattr(self, attrname):
-        commandcall = command.make_callable(self)            
-        setattr(self, attrname, commandcall)
-        #else:
-        #    raise ValueError("Name %s is already an instrument attribute")
-
-    
-    def add_command(self, command):
-        if not command.pk:
-            command.save()
-        self.commands.add(command)
-        self.make_command_function(command)
-        
-    
-    def create_command(self, *args, **kwargs):
-        c = Command(*args, **kwargs)        
-        self.add_command(c)
-        #     def post_init(self):
-#         #Execute if we have loaded the device and is already in the db
-#         if self.load_instrument() and self.pk:
-#              self.make_interface()
-    def make_interface(self):
-        allcommands = self.commands.all()
-        for command in allcommands:
-            self.make_command_function(command)
-        
-    
-    def __unicode__(self):
-        return self.name
-        
-    def post_init(self):
-        #Execute if we have loaded the device and is already in the db
-        if self.load_instrument() and self.pk:
-             self.make_interface()
-    
-    def associate(self, device):
-        self.device = device
-        self.make_interface()
-        
-    
-        
-    def load_instrument(self):
-        allins = device_comm.find_all()
-        if self.device_id in allins:
-            self.device = allins[self.device_id]
-            return True
-        else:
-            return False
             
         
          
