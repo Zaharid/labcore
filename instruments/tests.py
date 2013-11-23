@@ -8,15 +8,27 @@ from instruments.models import BaseInstrument, Instrument, Command, Parameter
 class TestModelLogic(TestCase):
     def setUp(self):
         device_comm.test_mode()
-        self.base = BaseInstrument(name = "Base Instrument")
-        self.ins = Instrument(name = "My Instrument",
+        self.base = BaseInstrument.objects.create(name = "Base Instrument")
+        
+        self.ins = Instrument.objects.create(name = "My Instrument",
                               base_instrument = self.base
                               ,device_id = "TEST DEVICE")
     
     def test_command_propagation(self):
+        
+        
+        print "ins base instrument is %s" % self.ins.base_instrument
         self.base.create_command(name = "c0", command_string = "c0?")
-        self.ins.save()
-        self.assertEqual(self.ins.c0(), 'c0?')
+        reloaded_ins = Instrument.objects.get(pk = self.ins.pk)
+        
+        self.assertEqual(reloaded_ins.c0(), 'c0?')
+        
+        self.ins.create_command(name = "c1", command_string = "c2cs")
+
+        reloaded_base = BaseInstrument.objects.get(pk = self.base.pk)
+        c1 = reloaded_base.commands.get(name = "c1")
+        self.assertEqual(c1.command_string, "c2cs")
+        
 #==============================================================================
 # 
 # class CommandTestCase(TestCase):

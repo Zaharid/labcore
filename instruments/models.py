@@ -28,7 +28,7 @@ class AbstractInstrument(models.Model):
     class Meta:
         abstract = True
     name = models.CharField(max_length = 256)
-    base_instrument = models.ForeignKey('self', null = True)
+    base_instrument = models.ForeignKey('BaseInstrument', null = True)
     commands = generic.GenericRelation('Command')
     
     def add_command(self, command):
@@ -37,13 +37,18 @@ class AbstractInstrument(models.Model):
         if not command.pk:
             command.instrument = self
             command.save()
+        else:
+            raise ValueError("Command must not be bound.")
 
     def create_command(self, *args, **kwargs):
         c = Command(*args, **kwargs)        
         self.add_command(c)
         
     def load_from_base(self):
+        print self
+        print self.base_instrument
         if self.base_instrument:
+            print "Adding commands"
             for command in self.base_instrument.commands.all():
                 command.pk = None
                 command.instrument = self
@@ -79,6 +84,7 @@ class Instrument(AbstractInstrument):
     def add_command(self, command):
         
         super(Instrument, self).add_command(command)
+        print "Command %s added" % command
         self.make_command_function(command)
 
 
@@ -93,8 +99,10 @@ class Instrument(AbstractInstrument):
         
 
     def post_init(self):
+        print "post init for %s" % self
         #Execute if we have loaded the device and is already in the db
         if self.load_instrument() and self.pk:
+            print "Loading base"
             self.load_from_base()
             self.make_interface()
     
@@ -128,14 +136,29 @@ class Command(models.Model):
                                     blank = True)
                                     
                                     
-    #instrument can be I   
+    base_command = models.ForeignKey('self', null = True)  
+    
     content_type = models.ForeignKey(ContentType)                                
     object_id = models.PositiveIntegerField()                                
     instrument = generic.GenericForeignKey()
     
     
         
-    description = models.TextField(default = "", blank = True)
+    private_description = models.TextField(default = "", blank = True)
+    
+    @property
+    def description(self):
+        if self.base_command:
+            return self.base_command.private_description
+        else:
+            return self.private_description
+            
+    @description.setter     #analysis:ignore   
+    def description(self, value):
+        if self.base_command:
+            self.base_command.private_description = value
+        else:
+            self.private_description = value
     
     class ParamFinder(object):
         def __init__(self, command):
@@ -219,11 +242,16 @@ class Command(models.Model):
                 self.command_type = "A"
             else:
                 self.command_type = "W"
+        if not self.base_command:
+            self.base_command = self
     
     def post_save(self):
         self.save_params()
+        print "Saving command. The base instr is %s" % self.instrument.base_instrument
         if self.instrument.base_instrument:
-            self.instrument.base_instrument.add_command(self)
+            newcommand = Command.objects.get(pk = self.pk)
+            newcommand.pk = None
+            self.instrument.base_instrument.add_command(newcommand)
     
 
 
