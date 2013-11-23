@@ -14,6 +14,10 @@ active_interfaces = (
                      USBDevice,
             )
             
+def test_mode():
+    global active_interfaces
+    active_interfaces = (TestDevice,)
+            
 active_devices = None
 
 def find_all():

@@ -23,8 +23,10 @@ COMMAND_TYPES = (
 )
 
 
-@utils.autoconnect
-class BaseInstrument(models.Model):
+
+class AbstractInstrument(models.Model):
+    class Meta:
+        abstract = True
     name = models.CharField(max_length = 256)
     base_instrument = models.ForeignKey('self', null = True)
     commands = generic.GenericRelation('Command')
@@ -35,30 +37,30 @@ class BaseInstrument(models.Model):
         if not command.pk:
             command.instrument = self
             command.save()
-        
 
-        if self.base_instrument:
-            self.base_instrument.add_command(command)
-        
-    
     def create_command(self, *args, **kwargs):
         c = Command(*args, **kwargs)        
         self.add_command(c)
         
-    
-    def post_save(self):
-        print "patata"
+    def load_from_base(self):
         if self.base_instrument:
             for command in self.base_instrument.commands.all():
                 command.pk = None
                 command.instrument = self
                 self.add_command(command)
+        
     
     def __unicode__(self):
         return self.name
 
+@utils.autoconnect        
+class BaseInstrument(AbstractInstrument):
+    def post_save(self):
+        self.load_from_base()
+    
 
-class Instrument(BaseInstrument):
+@utils.autoconnect
+class Instrument(AbstractInstrument):
 
     
     device_id = models.CharField(max_length = 256, null = True)
@@ -76,7 +78,7 @@ class Instrument(BaseInstrument):
 
     def add_command(self, command):
         
-        super(BaseInstrument, self).add_command(self, command)
+        super(Instrument, self).add_command(command)
         self.make_command_function(command)
 
 
@@ -85,13 +87,16 @@ class Instrument(BaseInstrument):
         for command in allcommands:
             self.make_command_function(command)
         
-    
+    def post_save(self):
+        pass
+        #self.load_from_base()
         
 
     def post_init(self):
         #Execute if we have loaded the device and is already in the db
         if self.load_instrument() and self.pk:
-             self.make_interface()
+            self.load_from_base()
+            self.make_interface()
     
     def associate(self, device):
         self.device = device
@@ -217,6 +222,8 @@ class Command(models.Model):
     
     def post_save(self):
         self.save_params()
+        if self.instrument.base_instrument:
+            self.instrument.base_instrument.add_command(self)
     
 
 
