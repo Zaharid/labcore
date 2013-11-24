@@ -21,6 +21,7 @@ def autoconnect(cls):
         cls.func = staticmethod(func)
         @wraps(func)
         def wrapper(sender, **kwargs):
+            #print "#####kwargs:\n %r \n#####"%kwargs
             return func(kwargs.pop('instance'), **kwargs)
         signal.connect(wrapper, sender=cls)
         return wrapper

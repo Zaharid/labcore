@@ -11,7 +11,6 @@ class ParameterAdmin(admin.TabularInline):
 class CommandAdmin(generic.GenericTabularInline):
     model = models.Command
     inlines = [ParameterAdmin]
-    exclude = ('base_command',)
     extra = 1
 
 class InstrumentAdmin(admin.ModelAdmin):

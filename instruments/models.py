@@ -4,6 +4,8 @@ from string import Formatter
 from django.db import models
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes import generic
+
+from django.core.exceptions import ObjectDoesNotExist
 #from django.db.models import signals
 
 from zutils.utils import make_signature
@@ -139,10 +141,9 @@ class Instrument(AbstractInstrument):
     def prepare(self):
         if self.load_device() and self.id:
             self.load_from_base()
-            self.make_interface()
         else:
            raise InstrumentError("Cannot prepare device."
-               "Save it to the DB and associate a device first.")
+               "Save it to the DB first.")
 
 
 
@@ -154,9 +155,30 @@ class Command(models.Model):
     command_type = models.CharField(max_length = 1, choices = COMMAND_TYPES, 
                                     blank = True)
                                     
-                                    
-    base_command = models.ForeignKey('self', null = True)  
-    
+    def __init__(self, *args ,**kwargs):
+        print args
+        print kwargs
+        super(Command, self).__init__(*args, **kwargs)
+        if 'description' in kwargs:
+            print "DESCRIPTIOON"
+            self.description = kwargs['description']
+        self._base_command = None
+                                        
+   
+    @property
+    def base_command(self):
+        if self._base_command:
+            return self._base_command
+        bins = self.instrument.base_instrument
+        if bins:
+            try:
+                self._base_command = bins.commands.get(name = self.name)
+                return self._base_command
+            except  ObjectDoesNotExist:
+                return None
+        return None
+            
+        
     content_type = models.ForeignKey(ContentType)                                
     object_id = models.PositiveIntegerField()                                
     instrument = generic.GenericForeignKey()
@@ -174,7 +196,8 @@ class Command(models.Model):
             
     @description.setter     #analysis:ignore   
     def description(self, value):
-        if self.base_command:
+        bc = self.base_command
+        if bc:
             self.base_command.private_description = value
             self.base_command.save()
         else:
@@ -257,9 +280,6 @@ class Command(models.Model):
         #print ("Making callable for %s" % self.command_string)
         return make_signature(f, argnames, kwargdefaults)
         
-    def post_init(self, **kwargs):
-        if 'description' in kwargs:
-            self.description = kwargs['description']
             
     def pre_save(self, **kwargs):
         if not self.command_type:
@@ -277,7 +297,7 @@ class Command(models.Model):
                             description = self.description)
             
             bins.add_command(newcommand)
-            self.base_command = newcommand
+            #self.base_command = newcommand
                 
         
     
@@ -303,26 +323,5 @@ class Parameter(models.Model):
     def __unicode__(self):
         return self.name
 
-#==============================================================================
-# def command_to_base(command):
-#     bc = BaseCommand()
-#     _transvase_commands(command, bc)
-#     return bc
-# 
-# def base_to_command(base_command):
-#     c = Command()
-#     _transvase_commands(base_command, c)
-#     return c
-#     
-# 
-# def _transvase_commands(from_command, to_command):
-#     from_command.name = to_command.name
-#     from_command.command_string = to_command.command_string
-#     from_command.description = to_command.description
-#     from_command.command_type = to_command.command_type
-#==============================================================================
-    
-         
-        
-    
+
     

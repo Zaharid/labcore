@@ -39,8 +39,7 @@ class TestModelLogic(TestCase):
                     base_instrument = self.base ,device_id = "TEST DEVICE")
                     
        
-        ins2.load_from_base()
-        ins2.make_interface()
+        ins2.prepare()
         ins3 = Instrument.objects.create(name = "I3", 
                     base_instrument = self.base, device_id = "TEST DEVICE")
         self.assertEqual(ins2.c0('1','2'), "query c0 1 2?")
