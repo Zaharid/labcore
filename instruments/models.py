@@ -30,7 +30,8 @@ class AbstractInstrument(models.Model):
         
     #id = models.AutoField(primary_key=True)
     name = models.CharField(max_length = 256, unique = True)
-    base_instrument = models.ForeignKey('BaseInstrument', null = True)
+    base_instrument = models.ForeignKey('BaseInstrument', 
+                                        null = True, blank = True)
     commands = generic.GenericRelation('Command')
     
     def add_command(self, command):
@@ -175,6 +176,7 @@ class Command(models.Model):
     def description(self, value):
         if self.base_command:
             self.base_command.private_description = value
+            self.base_command.save()
         else:
             self.private_description = value
     
@@ -281,6 +283,8 @@ class Command(models.Model):
     
     def post_save(self, **kwargs):
         self.save_params()
+        if self.base_command:
+            self.base_command.save()
         
            
     

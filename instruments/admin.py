@@ -1,19 +1,27 @@
 from django.contrib import admin
+from django.contrib.contenttypes import generic
 
 import models
 
 # Register your models here.
 
-class ParameterAdmin(admin.ModelAdmin):
-    pass
+class ParameterAdmin(admin.TabularInline):
+    models = models.Parameter
 
-class CommandAdmin(admin.ModelAdmin):
-    pass
+class CommandAdmin(generic.GenericTabularInline):
+    model = models.Command
+    inlines = [ParameterAdmin]
+    exclude = ('base_command',)
+    extra = 1
 
 class InstrumentAdmin(admin.ModelAdmin):
-    pass
+    inlines = [CommandAdmin]
+
+class BaseInstrumentAdmin(admin.ModelAdmin):
+    inlines = [CommandAdmin]
 
 
-admin.site.register(models.Command, CommandAdmin)
-admin.site.register(models.Parameter, ParameterAdmin)
+#admin.site.register(models.Command, CommandAdmin)
+#admin.site.register(models.Parameter, ParameterAdmin)
 admin.site.register(models.Instrument, InstrumentAdmin)
+admin.site.register(models.BaseInstrument, BaseInstrumentAdmin)
