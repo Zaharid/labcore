@@ -28,8 +28,8 @@ class AbstractInstrument(models.Model):
     class Meta:
         abstract = True
         
-    id = models.AutoField(primary_key=True)
-    name = models.CharField(max_length = 256)
+    #id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length = 256, unique = True)
     base_instrument = models.ForeignKey('BaseInstrument', null = True)
     commands = generic.GenericRelation('Command')
     
@@ -52,9 +52,10 @@ class AbstractInstrument(models.Model):
         if self.base_instrument:
             #print "Adding commands"
             for command in self.base_instrument.commands.all():
-                command.pk = None
-                command.instrument = self
-                command.save()
+                if not self.commands.filter(name = command.name).exists():
+                    command.pk = None
+                    command.instrument = self
+                    command.save()
         
     
     def __unicode__(self):
@@ -70,7 +71,8 @@ class BaseInstrument(AbstractInstrument):
 class Instrument(AbstractInstrument):
 
     
-    device_id = models.CharField(max_length = 256, null = True, unique = True)
+    device_id = models.CharField(max_length = 256,
+                                 null = True, unique = True, blank = True)
     
     #interface = models.ForeignKey(Interface)
     #commands = models.ManyToManyField(Command)
@@ -110,7 +112,7 @@ class Instrument(AbstractInstrument):
         
     
     def associate(self, device_id, device):
-        if self.device_id and self.device_id is not device_id:
+        if self.device_id and self.device_id != device_id:
             raise ValueError("""Instrument already has the device id %s.
                 Cannot associate with %s"""%(self.device_id, device_id))
                 

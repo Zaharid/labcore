@@ -63,6 +63,8 @@ def associate_known():
     return instruments
     
 def create_instrument(name, base_instrument, device_id, devobj = None):
+    """Creates an instrument object from an active device and initializes it
+    so that it can emit commands."""
     from instruments import models as m
     if isinstance(base_instrument, str):
         base_instrument = m.BaseInstrument.objects.get(name = base_instrument)
