@@ -4,17 +4,24 @@ Created on Sat Nov 16 20:44:15 2013
 
 @author: zah
 """
+from itertools import count
+from collections import namedtuple
 import usbtmc
+
+DeviceInfo = namedtuple('DeviceInfo', ['model', 'prodct_id', 'device_object'])
 
 class BaseDevice(object):
     def identify(self):
         try:
             m = self.model
+            p = self.product_id
         except AttributeError:
             self.idn = self.ask("*idn?")
-            self.model = ",".join(self.idn.split(',')[0:2])
+            idinfo = self.idn.split(',')
+            self.model = ",".join(idinfo[0:2])
+            self.product_id = idinfo[2:]
             m = self.model
-        return (m, self)
+        return DeviceInfo(m, p, self)
     
     @classmethod
     def get_instruments(cls):
@@ -22,8 +29,11 @@ class BaseDevice(object):
 
 
 class TestDevice(BaseDevice):
-    def __init__(self):
-        self.model = "TEST DEVICE"
+    product = count()
+    def __init__(self, model = 'TEST DEVICE', product_id = None):
+        self.model = model
+        if product_id is None:
+            self.product_id = "PRODUCT %i" % TestDevice.product.next()
     def write(self, s):
         return None
         
@@ -35,7 +45,7 @@ class TestDevice(BaseDevice):
         
     @classmethod
     def list_instruments(cls):
-        return [TestDevice()]
+        return [TestDevice(), TestDevice(), TestDevice("TEST DEVICE 2")]
 
 class USBDevice(usbtmc.Instrument, BaseDevice):
     @classmethod    

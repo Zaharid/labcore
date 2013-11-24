@@ -38,7 +38,7 @@ class TestModelLogic(TestCase):
         ins2 = Instrument.objects.create(name = "I2", 
                     base_instrument = self.base ,device_id = "TEST DEVICE")
                     
-        print ins2.device
+       
         ins2.load_from_base()
         ins2.make_interface()
         ins3 = Instrument.objects.create(name = "I3", 

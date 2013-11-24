@@ -11,7 +11,7 @@ from zutils.utils import make_signature
 
 import utils
 import device_comm
-
+from errors import InstrumentError
 # Create your models here.
 
 
@@ -70,7 +70,7 @@ class BaseInstrument(AbstractInstrument):
 class Instrument(AbstractInstrument):
 
     
-    device_id = models.CharField(max_length = 256, null = True)
+    device_id = models.CharField(max_length = 256, null = True, unique = True)
     
     #interface = models.ForeignKey(Interface)
     #commands = models.ManyToManyField(Command)
@@ -98,37 +98,43 @@ class Instrument(AbstractInstrument):
 
         
 
-    def post_init(self, **kwargs):
-        print "post init for %s" % self
-        print "%s tries to load instrument: %s" % (self, self.load_instrument())
-        print "%s tries id: %s" % (self, self.id)
-        #Execute if we have loaded the device and is already in the db
+#==============================================================================
+#     def post_init(self, **kwargs):
+#         try:
+#             self.prepare()
+#         except InstrumentError:
+#             pass
+#==============================================================================
                 
-        if self.load_instrument() and self.id:
-            print "Loading base %s" % self.name
-            self.load_from_base()
-            self.make_interface()
+        
     
-    def associate(self, device):
+    def associate(self, device_id, device):
+        if self.device_id and self.device_id is not device_id:
+            raise ValueError("""Instrument already has the device id %s.
+                Cannot associate with %s"""%(self.device_id, device_id))
+                
+        self.device_id = device_id
         self.device = device
-        self.make_interface()
+        self.save()
+        self.prepare()
 
-    def load_instrument(self):
+    def load_device(self):
         allins = device_comm.find_all()
         if self.device_id in allins:
             self.device = allins[self.device_id]
             return True
         else:
             return False
+    
+    def prepare(self):
+        if self.load_device() and self.id:
+            self.load_from_base()
+            self.make_interface()
+        else:
+           raise InstrumentError("Cannot prepare device."
+               "Save it to the DB and associate a device first.")
 
 
-#==============================================================================
-# @utils.autoconnect
-# class BaseCommand(models.Model):
-#     
-#                                 
-#     base_instrument = models.ForeignKey(BaseInstrument)
-#==============================================================================
 
 @utils.autoconnect
 class Command(models.Model):
@@ -232,8 +238,10 @@ class Command(models.Model):
        
         f = f_factory(s, instrf, argnames)        
                 
-        f.__doc__ = "%s\nThe query for this command is:\n%s"%(self.description,
-                                self.command_string)
+        f.__doc__ = "%s\n%s\nThe query for this command is:\n%s" % (
+                        self.description,
+                        self.private_description,
+                        self.command_string)
                                 
         #print ("Making callable for %s" % self.command_string)
         return make_signature(f, argnames, kwargdefaults)
