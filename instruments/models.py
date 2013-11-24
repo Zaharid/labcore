@@ -54,7 +54,7 @@ class AbstractInstrument(models.Model):
             for command in self.base_instrument.commands.all():
                 command.pk = None
                 command.instrument = self
-                self.add_command(command)
+                command.save()
         
     
     def __unicode__(self):
@@ -95,7 +95,8 @@ class Instrument(AbstractInstrument):
         for command in allcommands:
             self.make_command_function(command)
         
-
+    def post_save(self, **kwargs):
+        self.load_from_base()
         
 
 #==============================================================================
@@ -116,12 +117,18 @@ class Instrument(AbstractInstrument):
         self.device_id = device_id
         self.device = device
         self.save()
-        self.prepare()
+        device.is_controlled = True
+        self.make_interface()
+        #self.prepare()
 
     def load_device(self):
         allins = device_comm.find_all()
         if self.device_id in allins:
-            self.device = allins[self.device_id]
+            devobj = device_comm.next_not_controlled(self.device_id)
+            if not devobj:
+                return False
+                
+            self.associate(self.device_id, devobj.device)
             return True
         else:
             return False

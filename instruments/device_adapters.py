@@ -19,7 +19,7 @@ class BaseDevice(object):
             self.idn = self.ask("*idn?")
             idinfo = self.idn.split(',')
             self.model = ",".join(idinfo[0:2])
-            self.product_id = idinfo[2:]
+            self.product_id = idinfo[2]
             m = self.model
         return DeviceInfo(m, p, self)
     

@@ -31,7 +31,11 @@ def autoconnect(cls):
         
     return cls 
     
-
+def valid_identifier(s):
+    s = re.sub(r"\ ", '_', s)
+    s = re.sub(r'\W', '', s)
+    return s
+    
 def normalize_name(name):
     name = re.sub(r"\ ", '_', name)
     if not (re.match("^[a-zA-Z][a-zA-Z0-9_]*$", name)):

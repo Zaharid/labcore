@@ -9,6 +9,7 @@ from collections import defaultdict, namedtuple
 from django.core.exceptions import ObjectDoesNotExist
 
 from device_adapters import TestDevice, USBDevice
+import utils
 
 
 active_interfaces = ( 
@@ -32,26 +33,46 @@ def refresh_devices():
     active_devices = defaultdict(list)
     for iface in active_interfaces:
         for name, product, device in iface.get_instruments():
-            DevObj = namedtuple(name, ['product_id', 'device'])
+            valid_name = utils.valid_identifier(name)
+            DevObj = namedtuple(valid_name, ['product_id', 'device'])
             active_devices[name] += [DevObj(product, device)]
-    active_devices = {name:device for iface in active_interfaces
-            for (name, device) in iface.get_instruments() 
-            }
+    
                 
+def next_not_controlled(name):
+    l = find_all()[name]
+    for devobj in l:
+        try:
+            c = devobj.device.is_controlled
+        except AttributeError:
+            return devobj
+        if not c:
+            return devobj
 
 def associate_known():
     from instruments import models
     instruments = []
-    for devlist, device in find_all().items():
-        try:
-            ins = models.Instrument.objects.get(device_id = devname)
-            ins.associate(device)
-            instruments.append(ins)            
-        except ObjectDoesNotExist:
-            pass
+    for devname, devlist in find_all().items():
+        for (product_id, device) in devlist:
+            try:            
+                ins = models.Instrument.objects.get(device_id = devname)
+                ins.associate(devname, device)
+                instruments.append(ins)            
+            except ObjectDoesNotExist:
+                pass
     
     return instruments
-
+    
+def create_instrument(name, base_instrument, device_id, devobj = None):
+    from instruments import models as m
+    if isinstance(base_instrument, str):
+        base_instrument = m.BaseInstrument.objects.get(name = base_instrument)
+    ins = m.Instrument.objects.create(name = name, 
+                                     base_instrument = base_instrument, )
+    if devobj is None:
+        devobj = next_not_controlled(device_id)
+    ins.associate(device_id, devobj.device)
+    return ins
+    
 def find_unknown():
     from instruments import models
     alldevs = find_all()
