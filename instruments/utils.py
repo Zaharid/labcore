@@ -21,7 +21,7 @@ def autoconnect(cls):
         cls.func = staticmethod(func)
         @wraps(func)
         def wrapper(sender, **kwargs):
-            return func(kwargs.get('instance'))
+            return func(kwargs.pop('instance'), **kwargs)
         signal.connect(wrapper, sender=cls)
         return wrapper
         
@@ -30,6 +30,7 @@ def autoconnect(cls):
             setattr(cls, name, connect(method, getattr(cls, name)))
         
     return cls 
+    
 
 def normalize_name(name):
     name = re.sub(r"\ ", '_', name)

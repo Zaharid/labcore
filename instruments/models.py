@@ -27,6 +27,8 @@ COMMAND_TYPES = (
 class AbstractInstrument(models.Model):
     class Meta:
         abstract = True
+        
+    id = models.AutoField(primary_key=True)
     name = models.CharField(max_length = 256)
     base_instrument = models.ForeignKey('BaseInstrument', null = True)
     commands = generic.GenericRelation('Command')
@@ -45,10 +47,10 @@ class AbstractInstrument(models.Model):
         self.add_command(c)
         
     def load_from_base(self):
-        print self
-        print self.base_instrument
+        #print self
+        #print self.base_instrument
         if self.base_instrument:
-            print "Adding commands"
+            #print "Adding commands"
             for command in self.base_instrument.commands.all():
                 command.pk = None
                 command.instrument = self
@@ -60,7 +62,7 @@ class AbstractInstrument(models.Model):
 
 @utils.autoconnect        
 class BaseInstrument(AbstractInstrument):
-    def post_save(self):
+    def post_save(self, **kwargs):
         self.load_from_base()
     
 
@@ -84,7 +86,7 @@ class Instrument(AbstractInstrument):
     def add_command(self, command):
         
         super(Instrument, self).add_command(command)
-        print "Command %s added" % command
+        #print "Command %s added" % command
         self.make_command_function(command)
 
 
@@ -93,16 +95,17 @@ class Instrument(AbstractInstrument):
         for command in allcommands:
             self.make_command_function(command)
         
-    def post_save(self):
-        pass
-        #self.load_from_base()
+
         
 
-    def post_init(self):
+    def post_init(self, **kwargs):
         print "post init for %s" % self
+        print "%s tries to load instrument: %s" % (self, self.load_instrument())
+        print "%s tries id: %s" % (self, self.id)
         #Execute if we have loaded the device and is already in the db
-        if self.load_instrument() and self.pk:
-            print "Loading base"
+                
+        if self.load_instrument() and self.id:
+            print "Loading base %s" % self.name
             self.load_from_base()
             self.make_interface()
     
@@ -232,26 +235,37 @@ class Command(models.Model):
         f.__doc__ = "%s\nThe query for this command is:\n%s"%(self.description,
                                 self.command_string)
                                 
-        print ("Making callable for %s" % self.command_string)
+        #print ("Making callable for %s" % self.command_string)
         return make_signature(f, argnames, kwargdefaults)
         
-        
-    def pre_save(self):
+    def post_init(self, **kwargs):
+        if 'description' in kwargs:
+            self.description = kwargs['description']
+            
+    def pre_save(self, **kwargs):
         if not self.command_type:
             if self.command_string.endswith('?'):
                 self.command_type = "A"
             else:
                 self.command_type = "W"
-        if not self.base_command:
-            self.base_command = self
+        
+        
+        bins = self.instrument.base_instrument
+        if bins and not bins.commands.filter(name = self.name).exists():
+            newcommand = Command(
+                            name = self.name,
+                            command_string = self.command_string, 
+                            description = self.description)
+            
+            bins.add_command(newcommand)
+            self.base_command = newcommand
+                
+        
     
-    def post_save(self):
+    def post_save(self, **kwargs):
         self.save_params()
-        print "Saving command. The base instr is %s" % self.instrument.base_instrument
-        if self.instrument.base_instrument:
-            newcommand = Command.objects.get(pk = self.pk)
-            newcommand.pk = None
-            self.instrument.base_instrument.add_command(newcommand)
+        
+           
     
 
 

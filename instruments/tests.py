@@ -17,7 +17,7 @@ class TestModelLogic(TestCase):
     def test_command_propagation(self):
         
         
-        print "ins base instrument is %s" % self.ins.base_instrument
+        #print "ins base instrument is %s" % self.ins.base_instrument
         self.base.create_command(name = "c0", command_string = "c0?")
         reloaded_ins = Instrument.objects.get(pk = self.ins.pk)
         
@@ -28,6 +28,26 @@ class TestModelLogic(TestCase):
         reloaded_base = BaseInstrument.objects.get(pk = self.base.pk)
         c1 = reloaded_base.commands.get(name = "c1")
         self.assertEqual(c1.command_string, "c2cs")
+    
+    def test_command_execution(self):
+        self.base.create_command(name = 'c0', 
+                command_string = "query c0 {param1} {param2}?",
+                description = "My base command description")
+        
+        self.base.save()        
+        ins2 = Instrument.objects.create(name = "I2", 
+                    base_instrument = self.base ,device_id = "TEST DEVICE")
+                    
+        print ins2.device
+        ins2.load_from_base()
+        ins2.make_interface()
+        ins3 = Instrument.objects.create(name = "I3", 
+                    base_instrument = self.base, device_id = "TEST DEVICE")
+        self.assertEqual(ins2.c0('1','2'), "query c0 1 2?")
+    
+    def tearDown(self):
+        Instrument.objects.all().delete()
+        BaseInstrument.objects.all().delete()
         
 #==============================================================================
 # 
