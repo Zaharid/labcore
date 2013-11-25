@@ -21,11 +21,14 @@ class BaseDevice(object):
             self.model = ",".join(idinfo[0:2])
             self.product_id = idinfo[2]
             m = self.model
+            p = self.product_id
         return DeviceInfo(m, p, self)
     
     @classmethod
     def get_instruments(cls):
         return [dev.identify() for dev in cls.list_instruments()]
+    def __repr__(self):
+        return "<Device %s as %s>" % (self.product_id, self.__class__)
 
 
 class TestDevice(BaseDevice):

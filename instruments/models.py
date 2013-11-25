@@ -56,9 +56,14 @@ class AbstractInstrument(models.Model):
             #print "Adding commands"
             for command in self.base_instrument.commands.all():
                 if not self.commands.filter(name = command.name).exists():
-                    command.pk = None
-                    command.instrument = self
-                    command.save()
+                   newcommand = Command(
+                            name = command.name,
+                            command_string = command.command_string, 
+                            command_type = command.command_type,
+                            instrument = self)
+                   newcommand.save()
+            
+           
         
     
     def __unicode__(self):
@@ -304,7 +309,7 @@ class Command(models.Model):
             newcommand = Command(
                             name = self.name,
                             command_string = self.command_string, 
-                            description = self.description)
+                            command_type = self.command_type)
             
             bins.add_command(newcommand)
            
