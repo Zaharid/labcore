@@ -19,9 +19,9 @@ class TestModelLogic(TestCase):
         
         #print "ins base instrument is %s" % self.ins.base_instrument
         self.base.create_command(name = "c0", command_string = "c0?")
-        reloaded_ins = Instrument.objects.get(pk = self.ins.pk)
-        
-        self.assertEqual(reloaded_ins.c0(), 'c0?')
+        #reloaded_ins = Instrument.objects.get(pk = self.ins.pk)
+        self.ins.prepare()
+        self.assertEqual(self.ins.c0(), 'c0?')
         
         self.ins.create_command(name = "c1", command_string = "c2cs")
 
@@ -30,19 +30,18 @@ class TestModelLogic(TestCase):
         self.assertEqual(c1.command_string, "c2cs")
     
     def test_command_execution(self):
-        self.base.create_command(name = 'c0', 
-                command_string = "query c0 {param1} {param2}?",
-                description = "My base command description")
+         self.base.create_command(name = 'c0', 
+                 command_string = "query c0 {param1} {param2}?",
+                 description = "My base command description")
+         
+         self.base.save()        
+         ins2 = Instrument.objects.create(name = "I2", 
+                     base_instrument = self.base ,device_id = "TEST DEVICE 2")
+                     
         
-        self.base.save()        
-        ins2 = Instrument.objects.create(name = "I2", 
-                    base_instrument = self.base ,device_id = "TEST DEVICE")
-                    
-       
-        ins2.prepare()
-        ins3 = Instrument.objects.create(name = "I3", 
-                    base_instrument = self.base, device_id = "TEST DEVICE")
-        self.assertEqual(ins2.c0('1','2'), "query c0 1 2?")
+         ins2.prepare()
+         
+         self.assertEqual(ins2.c0('1','2'), "query c0 1 2?")
     
     def tearDown(self):
         Instrument.objects.all().delete()

@@ -139,7 +139,7 @@ class Instrument(AbstractInstrument):
             return False
     
     def prepare(self):
-        if self.load_device() and self.id:
+        if self.load_device() and self.pk:
             self.load_from_base()
         else:
            raise InstrumentError("Cannot prepare device."
@@ -155,14 +155,9 @@ class Command(models.Model):
     command_type = models.CharField(max_length = 1, choices = COMMAND_TYPES, 
                                     blank = True)
                                     
-    def __init__(self, *args ,**kwargs):
-        print args
-        print kwargs
-        super(Command, self).__init__(*args, **kwargs)
-        if 'description' in kwargs:
-            print "DESCRIPTIOON"
-            self.description = kwargs['description']
-        self._base_command = None
+    private_description = models.TextField(default = "", blank = True)                            
+    
+       
                                         
    
     @property
@@ -185,10 +180,12 @@ class Command(models.Model):
     
     
         
-    private_description = models.TextField(default = "", blank = True)
+    
     
     @property
     def description(self):
+        if self._description:
+            return self._description
         if self.base_command:
             return self.base_command.private_description
         else:
@@ -203,15 +200,25 @@ class Command(models.Model):
         else:
             self.private_description = value
     
+   
+            
+    @property
+    def parameters(self):
+        return Command.ParamFinder(self)
+        
     class ParamFinder(object):
         def __init__(self, command):
             self.command = command
         def __getitem__(self, key):
             return self.command.parameter_set.get(name = key)
-            
-    @property
-    def parameters(self):
-        return Command.ParamFinder(self)
+    
+    def __init__(self, *args ,**kwargs):
+        self._base_command = None
+        self._description = kwargs.pop('description', None)
+        super(Command, self).__init__(*args, **kwargs)
+        
+       
+       
     
     
     def save_params(self):
@@ -287,8 +294,11 @@ class Command(models.Model):
                 self.command_type = "A"
             else:
                 self.command_type = "W"
+        self.make_base()
+        if self._description is not None: 
+            self.description = self._description
         
-        
+    def make_base(self):
         bins = self.instrument.base_instrument
         if bins and not bins.commands.filter(name = self.name).exists():
             newcommand = Command(
@@ -297,7 +307,7 @@ class Command(models.Model):
                             description = self.description)
             
             bins.add_command(newcommand)
-            #self.base_command = newcommand
+           
                 
         
     
