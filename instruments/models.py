@@ -127,12 +127,12 @@ class Instrument(AbstractInstrument):
                 
         
     
-    def associate(self, device_id, device):
-        if self.device_id and self.device_id != device_id:
+    def associate(self, device):
+        if self.device_id and self.device_id != device.model:
             raise ValueError("""Instrument already has the device id %s.
-                Cannot associate with %s"""%(self.device_id, device_id))
+                Cannot associate with %s"""%(self.device_id, device.model))
                 
-        self.device_id = device_id
+        self.device_id = device.model
         self.device = device
         self.save()
         device.is_controlled = True
@@ -150,7 +150,7 @@ class Instrument(AbstractInstrument):
             if not devobj:
                 return False
                 
-            self.associate(self.device_id, devobj.device)
+            self.associate(devobj.device)
             return True
         else:
             return False

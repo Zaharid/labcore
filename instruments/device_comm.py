@@ -4,12 +4,12 @@ Created on Thu Nov 21 16:49:36 2013
 
 @author: zah
 """
-from collections import defaultdict, namedtuple
+
 
 from django.core.exceptions import ObjectDoesNotExist
 
 from device_adapters import TestDevice, USBDevice
-import utils
+
 
 
 active_interfaces = ( 
@@ -23,6 +23,13 @@ def test_mode():
             
 active_devices = None
 
+class DevObj(object):
+    def __init__(self, product_id, device):
+        self.product_id = product_id
+        self.device = device
+    def __repr__(self):
+        return self.device.__repr__()
+
 def find_all():    
     if active_devices is None:
         refresh_devices()
@@ -30,12 +37,13 @@ def find_all():
 
 def refresh_devices():
     global active_devices
-    active_devices = defaultdict(list)
+    active_devices = {}
     for iface in active_interfaces:
         for name, product, device in iface.get_instruments():
-            valid_name = utils.valid_identifier(name)
-            DevObj = namedtuple(valid_name, ['product_id', 'device'])
-            active_devices[name] += [DevObj(product, device)]
+            
+            
+            active_devices[name] = (active_devices.get(name, []) +
+                                    [DevObj(product, device)])
 
 def get_device(model, product_id):
     try:
@@ -45,8 +53,9 @@ def get_device(model, product_id):
     try:
         item = next(x for x in l if x.product_id == product_id)
     except StopIteration:
-        raise ValueError("The '%s' device of type %s is not found")
-    return item.device
+        raise ValueError("The '%s' device of type %s is not found" 
+                            % (product_id, model))
+    return item
     
     
                 
@@ -67,7 +76,7 @@ def associate_known():
         for (product_id, device) in devlist:
             try:            
                 ins = models.Instrument.objects.get(device_id = devname)
-                ins.associate(devname, device)
+                ins.associate(device)
                 instruments.append(ins)            
             except ObjectDoesNotExist:
                 pass
@@ -84,7 +93,7 @@ def create_instrument(name, base_instrument, device_id, devobj = None):
                                      base_instrument = base_instrument, )
     if devobj is None:
         devobj = next_not_controlled(device_id)
-    ins.associate(device_id, devobj.device)
+    ins.associate(devobj.device)
     return ins
     
 def find_unknown():

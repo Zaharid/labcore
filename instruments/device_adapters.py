@@ -28,7 +28,7 @@ class BaseDevice(object):
     def get_instruments(cls):
         return [dev.identify() for dev in cls.list_instruments()]
     def __repr__(self):
-        return "<Device %s as %s>" % (self.product_id, self.__class__)
+        return "<Device %s as %s>" % (self.product_id, self.__class__.__name__)
 
 
 class TestDevice(BaseDevice):
