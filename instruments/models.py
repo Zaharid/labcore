@@ -27,6 +27,7 @@ COMMAND_TYPES = (
 
 
 class AbstractInstrument(models.Model):
+    """This class holds the common methods of BaseInstrument and Instrument."""
     class Meta:
         abstract = True
         
@@ -37,6 +38,8 @@ class AbstractInstrument(models.Model):
     commands = generic.GenericRelation('Command')
     
     def add_command(self, command):
+        """Sets the instrument of **command** to the instrument and saves 
+        it."""
         if not self.pk:
             self.save()
         if not command.pk:
@@ -46,10 +49,15 @@ class AbstractInstrument(models.Model):
             raise ValueError("Command must not be bound.")
 
     def create_command(self, *args, **kwargs):
+        """High level method for adding a command to an instrument.
+        
+        ***args** and ***kwawgs** are passed to the **Command** constructor."""
         c = Command(*args, **kwargs)        
         self.add_command(c)
         
     def load_from_base(self):
+        """Pulls the commands from the base of this instrument and saves
+        them."""
         #print self
         #print self.base_instrument
         if self.base_instrument:
@@ -131,7 +139,7 @@ class Instrument(AbstractInstrument):
         self.make_interface()
         #self.prepare()
 
-    def load_device(self):
+    def load_device(self, model = None):
         allins = device_comm.find_all()
         if self.device_id in allins:
             devobj = device_comm.next_not_controlled(self.device_id)
@@ -143,12 +151,17 @@ class Instrument(AbstractInstrument):
         else:
             return False
     
-    def prepare(self):
+    def prepare(self, model = None):
+        """Loads the instrument device and any new commands from the base.
+        
+        Use this to make the instrument operational after loading it from the
+        db."""
         if self.load_device() and self.pk:
             self.load_from_base()
         else:
            raise InstrumentError("Cannot prepare device."
-               "Save it to the DB first.")
+               "Save it to the DB first and ensure a compatible instrument "
+               "is connected.")
 
 
 

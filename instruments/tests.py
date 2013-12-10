@@ -18,10 +18,14 @@ class TestModelLogic(TestCase):
         
         
         #print "ins base instrument is %s" % self.ins.base_instrument
-        self.base.create_command(name = "c0", command_string = "c0?")
+        desc = "Description c0"
+        self.base.create_command(name = "c0", command_string = "c0?",
+                                 description = desc)
         #reloaded_ins = Instrument.objects.get(pk = self.ins.pk)
         self.ins.prepare()
         self.assertEqual(self.ins.c0(), 'c0?')
+        cdesc = self.ins.commands.get(name = "c0").description
+        self.assertEqual(cdesc, desc)
         
         self.ins.create_command(name = "c1", command_string = "c2cs")
 
@@ -33,6 +37,12 @@ class TestModelLogic(TestCase):
          self.base.create_command(name = 'c0', 
                  command_string = "query c0 {param1} {param2}?",
                  description = "My base command description")
+                 
+         self.base.create_command(name = 'c1', 
+                 command_string = "query c1 {p1} {p2}?",
+                 description = "My other command desc.")
+        
+         
          
          self.base.save()        
          ins2 = Instrument.objects.create(name = "I2", 
@@ -41,7 +51,25 @@ class TestModelLogic(TestCase):
         
          ins2.prepare()
          
+         ins2.create_command(name = 'c2', 
+                 command_string = "query c2 {x1} {x2} {x3}?",
+                 description = "3 params!")
+         
          self.assertEqual(ins2.c0('1','2'), "query c0 1 2?")
+         
+         self.assertEqual(ins2.c1(p1 = 0, p2 = 2), "query c1 0 2?")
+         
+         self.assertRaises(TypeError, ins2.c1(p1 = 0, p2 = 2))
+         
+         self.assertEqual(ins2.c2(x1 = 2, x2 = 4, x3 = 8),
+                          "query c2 2 4 8?")
+         
+                 
+         c2_ins2 = ins2.commands.get(name = "c2")
+         c2_base = self.base.commands.get(name = "c2")
+         self.assertEqual(c2_ins2.description, c2_base.private_description)
+        
+         
     
     def tearDown(self):
         Instrument.objects.all().delete()
