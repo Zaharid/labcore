@@ -69,7 +69,10 @@ class TestModelLogic(TestCase):
          c2_base = self.base.commands.get(name = "c2")
          self.assertEqual(c2_ins2.description, c2_base.private_description)
         
-         
+    
+        
+    def test_load(self):
+        self.ins.prepare("PRODUCT 0")
     
     def tearDown(self):
         Instrument.objects.all().delete()

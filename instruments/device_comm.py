@@ -36,6 +36,18 @@ def refresh_devices():
             valid_name = utils.valid_identifier(name)
             DevObj = namedtuple(valid_name, ['product_id', 'device'])
             active_devices[name] += [DevObj(product, device)]
+
+def get_device(model, product_id):
+    try:
+        l = find_all()[model]
+    except KeyError:
+        raise ValueError("No device of type %s found." % model)
+    try:
+        item = next(x for x in l if x.product_id == product_id)
+    except StopIteration:
+        raise ValueError("The '%s' device of type %s is not found")
+    return item.device
+    
     
                 
 def next_not_controlled(name):

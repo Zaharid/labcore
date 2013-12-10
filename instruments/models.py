@@ -139,10 +139,14 @@ class Instrument(AbstractInstrument):
         self.make_interface()
         #self.prepare()
 
-    def load_device(self, model = None):
+    def load_device(self, product_id = None):
         allins = device_comm.find_all()
+        
         if self.device_id in allins:
-            devobj = device_comm.next_not_controlled(self.device_id)
+            if product_id is None:
+                devobj = device_comm.next_not_controlled(self.device_id)
+            else:
+                devobj = device_comm.get_device(self.device_id, product_id)
             if not devobj:
                 return False
                 
@@ -151,12 +155,12 @@ class Instrument(AbstractInstrument):
         else:
             return False
     
-    def prepare(self, model = None):
+    def prepare(self, product_id = None):
         """Loads the instrument device and any new commands from the base.
         
         Use this to make the instrument operational after loading it from the
         db."""
-        if self.load_device() and self.pk:
+        if self.load_device(product_id = product_id) and self.pk:
             self.load_from_base()
         else:
            raise InstrumentError("Cannot prepare device."
