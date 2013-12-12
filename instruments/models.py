@@ -237,6 +237,7 @@ class Command(models.Model):
     def __init__(self, *args ,**kwargs):
         self._base_command = None
         self._description = kwargs.pop('description', None)
+        self._defaults = kwargs.pop('defaults', {}) 
         super(Command, self).__init__(*args, **kwargs)
         
        
@@ -250,8 +251,14 @@ class Command(models.Model):
         param_names = []
         for (_ , param_name, _ , _) in tokens:
             if param_name is not None:
-                self.parameter_set.get_or_create(name = param_name)
+
+                (param, _) = self.parameter_set.get_or_create(name=param_name)
+                if param_name in self._defaults:
+                    param.default_value = self._defaults[param_name]
+                    param.save()
                 param_names += [param_name]
+                
+                    
             
                 
         self.parameter_set.exclude(name__in = param_names).delete()
@@ -263,6 +270,7 @@ class Command(models.Model):
         allnames = []
         kwargdefaults = {}
         for param in params:
+            #TODO: Allow void defaults.
             if param.default_value:
                 kwargdefaults[param.name] = param.default_value
             else:
@@ -345,10 +353,14 @@ class Command(models.Model):
     def __unicode__(self):
         return self.name
         
+
+
+#TODO: Optional parameters        
+#TODO: Default null
 class Parameter(models.Model):
     command = models.ForeignKey(Command, null = False)
     name = models.CharField(max_length = 128)
-    default_value = models.CharField(max_length = 128, blank = True)
+    default_value = models.CharField(max_length = 128, blank = True, )
     description = models.TextField(default = "", blank = True)
     
     

@@ -73,10 +73,10 @@ def associate_known():
     from instruments import models
     instruments = []
     for devname, devlist in find_all().items():
-        for (product_id, device) in devlist:
+        for devobj in devlist:
             try:            
                 ins = models.Instrument.objects.get(device_id = devname)
-                ins.associate(device)
+                ins.associate(devobj.device)
                 instruments.append(ins)            
             except ObjectDoesNotExist:
                 pass
@@ -102,4 +102,10 @@ def find_unknown():
     unknown = {k: v for k,v in alldevs.items() 
         if not models.Instrument.objects.filter(device_id = k).exists()}
     return unknown
+
+def load_instrument(name = None, **kwargs):
+    from instruments import models
+    ins = models.Instrument.objects.get(name = name, **kwargs)
+    ins.prepare()
+    return ins
     
