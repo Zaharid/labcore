@@ -169,6 +169,7 @@ class Instrument(AbstractInstrument):
 
 
 
+#TODO:Processors.
 @utils.autoconnect
 class Command(models.Model):
     name = models.CharField(max_length = 128)
