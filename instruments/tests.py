@@ -77,9 +77,23 @@ class TestModelLogic(TestCase):
     def test_default_values(self):
         self.ins.prepare("PRODUCT 0")
         self.ins.create_command(name = "cdef", 
-                                command_string = "{p0} {pdef}?",
-                                defaults = {'pdef':'xx'})
-        self.assertEqual(self.ins.cdef(0), "0 xx?")
+                                command_string = "{p0} {pdef} {spdef}?",
+                                defaults = {'pdef':'xx', 'spdef':'yy'})
+        self.assertEqual(self.ins.cdef(0), "0 xx yy?")
+        self.assertEqual(self.ins.cdef(0, spdef = 'jj'), "0 xx jj?")
+        self.assertEqual(self.ins.cdef(0, spdef = 'jj', pdef = ''), "0  jj?")
+        self.assertEqual(self.ins.cdef(0, 1 , 2), "0 1 2?")
+        
+    def test_commad_access(self):
+        self.ins.prepare("PRODUCT 0")
+        self.ins.create_command(name = "cdef", 
+                                command_string = "{p0} {pdef} {spdef}?",
+                                defaults = {'pdef':'xx', 'spdef':'yy'})
+        self.ins.cdef.command.command_string = "xx"
+        self.ins.cdef.command.save()
+        self.ins.make_interface()
+        self.assertEqual(self.ins.cdef(), 'xx')
+        self.assertFalse(self.ins.cdef.command.parameter_set.all())
     
     def tearDown(self):
         Instrument.objects.all().delete()

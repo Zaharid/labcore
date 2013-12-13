@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from collections import OrderedDict
 from string import Formatter
 
 from django.db import models
@@ -140,7 +141,9 @@ class Instrument(AbstractInstrument):
         #self.prepare()
 
     def load_device(self, product_id = None):
+        
         allins = device_comm.find_all()
+    
         
         if self.device_id in allins:
             if product_id is None:
@@ -269,10 +272,9 @@ class Command(models.Model):
         params = self.parameter_set.all()
         argnames = []
         allnames = []
-        kwargdefaults = {}
+        kwargdefaults = OrderedDict()
         for param in params:
-            #TODO: Allow void defaults.
-            if param.default_value:
+            if param.default_value is not None:
                 kwargdefaults[param.name] = param.default_value
             else:
                 argnames += [param.name]
@@ -316,6 +318,7 @@ class Command(models.Model):
                         self.command_string)
                                 
         #print ("Making callable for %s" % self.command_string)
+        f.command = self
         return make_signature(f, argnames, kwargdefaults)
         
             
@@ -357,11 +360,11 @@ class Command(models.Model):
 
 
 #TODO: Optional parameters        
-#TODO: Default null
 class Parameter(models.Model):
     command = models.ForeignKey(Command, null = False)
     name = models.CharField(max_length = 128)
-    default_value = models.CharField(max_length = 128, blank = True, )
+    default_value = models.CharField(max_length = 128, blank = True, 
+                                     null = True)
     description = models.TextField(default = "", blank = True)
     
     
