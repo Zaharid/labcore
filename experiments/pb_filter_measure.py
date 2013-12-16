@@ -4,6 +4,8 @@ Created on Thu Dec 12 18:00:09 2013
 
 @author: zah
 """
+import time
+
 import instruments
 
 osc = instruments.load_instrument('osc')
@@ -19,5 +21,6 @@ def measure(freq):
     osc.set_generator_frequency(freq)
     osc.autoscale()
     osc.set_acquire_type('AVERAGE')
+    time.sleep(1)
     phase = osc.measure_phase()
     return phase
