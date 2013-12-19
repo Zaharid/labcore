@@ -104,7 +104,7 @@ class AdaptiveSampler(object):
                 ]
             newx = xp + initdelta
             
-            prior = self.get_prior(newx, self.get_y(inity[i]), *d)
+            prior = self.get_prior(newx, inity[i], *d)
             if -prior > self.min_angle:
                 self.data[newx] = d
                 self.heapdict.additem(newx, prior)
