@@ -5,7 +5,6 @@ Created on Wed Dec 18 16:47:33 2013
 @author: zah
 """
 
-import heapq
 import numpy as np
 
 from pqdict import PQDict
@@ -25,6 +24,8 @@ class AdaptiveSampler(object):
         self.epsilon = epsilon
         self.max_points = max_points
         
+        self.scale_to_x = lambda x: a + x*(b-a)
+        
         
     
     def get_y(self,yret):
@@ -39,11 +40,12 @@ class AdaptiveSampler(object):
         prior = -(min(np.abs(a1-a2), 2*pi-np.abs((a1-a2))))
         return prior
         
-    def eval_point(self, x, xp, yp, xn, yn ,yret = None):
+    def eval_point(self, x, xp, yp, xn, yn):
         del self.data[x]
-        if yret is None:    
-            yret = self.f(x)
-        y = self.get_y(yret)
+        xret = self.scale_to_x(x)
+        
+        yret = self.f(xret)
+        y = self.scale_from_y(self.get_y(yret))
             
        
         prior = self.get_prior(x, y ,xp, yp, xn, yn)
@@ -78,25 +80,31 @@ class AdaptiveSampler(object):
             #heapq.heappush(self.heap, (prior, d1))
             #heapq.heappush(self.heap, (prior, d2))
             
-        return x,yret
+        return xret,yret
     
     def run(self):
         self.heapdict = PQDict()
         self.data = {}
-        initx = np.linspace(self.a, self.b, self.init_points)
+        initx = np.linspace(0, 1, self.init_points)
         initdelta = (initx[1] - initx[0])/2.
         inity = []
         for x in initx:
-            yret = self.f(x)
-            yield (x, yret)
-            inity.append(yret)
+            xret = self.scale_to_x(x)
+            yret = self.f(xret)
+            yield (xret, yret)
+            inity.append(self.get_y(yret))
+            
+        
+        #self.scale_from_y = lambda y: (y-min(inity))/(max(inity)-min(inity)) 
+        self.scale_from_y = lambda y: (y/100) 
+        inity = [self.scale_from_y(y) for y in inity]
         for (i,xp) in enumerate(initx[0:-1]):
-            d = [initx[i], self.get_y(inity[i]),
-                 initx[i+1], self.get_y(inity[i+1]),
+            d = [initx[i],   inity[i],
+                 initx[i+1], inity[i+1],
                 ]
             newx = xp + initdelta
             
-            prior = self.get_prior(newx, self.get_y(inity[i]), *d)
+            prior = self.get_prior(newx, inity[i], *d)
             if -prior > self.min_angle:
                 self.data[newx] = d
                 self.heapdict.additem(newx, prior)
@@ -155,6 +163,5 @@ def test():
                                    )
     plt.show()
     plt.plot(x,y, marker = 'o', drawstyle = 'steps')
+    plt.plot(sorted(x),f(sorted(x)))
     plt.show()
-
-#test()
