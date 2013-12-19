@@ -95,7 +95,8 @@ class AdaptiveSampler(object):
             inity.append(self.get_y(yret))
             
         
-        self.scale_from_y = lambda y: (y-min(inity)-5)/(max(inity)+10-min(inity)) 
+        #self.scale_from_y = lambda y: (y-min(inity))/(max(inity)-min(inity)) 
+        self.scale_from_y = lambda y: (y/100) 
         inity = [self.scale_from_y(y) for y in inity]
         for (i,xp) in enumerate(initx[0:-1]):
             d = [initx[i],   inity[i],
@@ -132,9 +133,9 @@ def test():
     import matplotlib.pyplot as plt
     from matplotlib import animation
 
-    f = lambda x : stats.cauchy.pdf(x,0.4,0.1)
+    f = lambda x :50* stats.cauchy.pdf(x,0.73,.3)
     fig = plt.figure()
-    ax = plt.axes(xlim=(-5, 5), ylim=(-0, 1.1))
+    ax = plt.axes(xlim=(-60, 60), ylim=(-0, 51.1))
     x = []
     y = []
     line, = ax.plot(x, y, 'o',lw=2)
@@ -142,7 +143,7 @@ def test():
     
     def init():
         global s, it, x, y
-        s = AdaptiveSampler(f, -5, 5, max_points = 500, epsilon = 0)
+        s = AdaptiveSampler(f, -40, 51, max_points = 500, epsilon = 0, min_angle = 2e-4)
         it = s.run()
         x = []
         y = []
@@ -156,11 +157,9 @@ def test():
         line.set_data(x,y)
         return line,
     anim = animation.FuncAnimation(fig, animate, init_func = init,
-                                   frames=80, interval=300, blit=True, 
+                                   frames=80, interval=0, blit=True, 
                                    )
     plt.show()
     plt.plot(x,y, marker = 'o')
-    plt.plot(sorted(x),f(sorted(x)), 'gd-')
+    plt.plot(sorted(x),f(sorted(x)))
     plt.show()
-
-#test()
