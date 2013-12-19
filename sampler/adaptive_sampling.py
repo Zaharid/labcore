@@ -124,10 +124,12 @@ def test():
     from scipy import stats
     import matplotlib.pyplot as plt
     from matplotlib import animation
+    
+    yscale = 1
 
-    f = lambda x : stats.cauchy.pdf(x,0.73,.3)
+    f = lambda x : yscale * stats.cauchy.pdf(x,0.73,.3)
     fig = plt.figure()
-    ax = plt.axes(xlim=(-6, 6), ylim=(-0, 1.1))
+    ax = plt.axes(xlim=(-6, 6), ylim=(-0, yscale * 1.1))
     x = []
     y = []
     line, = ax.plot(x, y, 'o',lw=2)
@@ -135,7 +137,7 @@ def test():
     
     def init():
         global s, it, x, y
-        s = AdaptiveSampler(f, -4, 5.1, max_points = 50, epsilon = 1e-1)
+        s = AdaptiveSampler(f, -4, 5.1, max_points = 90, epsilon = 0, min_angle = 0)
         it = s.run()
         x = []
         y = []
@@ -152,7 +154,7 @@ def test():
                                    frames=80, interval=0, blit=True, 
                                    )
     plt.show()
-    plt.plot(x,y, marker = 'o')
+    plt.plot(x,y, marker = 'o', drawstyle = 'steps')
     plt.show()
 
 #test()
