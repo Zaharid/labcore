@@ -5,7 +5,6 @@ Created on Wed Dec 18 16:47:33 2013
 @author: zah
 """
 
-import heapq
 import numpy as np
 
 from pqdict import PQDict
@@ -25,6 +24,8 @@ class AdaptiveSampler(object):
         self.epsilon = epsilon
         self.max_points = max_points
         
+        self.scale_to_x = lambda x: a + x*(b-a)
+        
         
     
     def get_y(self,yret):
@@ -39,11 +40,12 @@ class AdaptiveSampler(object):
         prior = -(min(np.abs(a1-a2), 2*pi-np.abs((a1-a2))))
         return prior
         
-    def eval_point(self, x, xp, yp, xn, yn ,yret = None):
+    def eval_point(self, x, xp, yp, xn, yn):
         del self.data[x]
-        if yret is None:    
-            yret = self.f(x)
-        y = self.get_y(yret)
+        xret = self.scale_to_x(x)
+        
+        yret = self.f(xret)
+        y = self.scale_from_y(self.get_y(yret))
             
        
         prior = self.get_prior(x, y ,xp, yp, xn, yn)
@@ -78,21 +80,26 @@ class AdaptiveSampler(object):
             #heapq.heappush(self.heap, (prior, d1))
             #heapq.heappush(self.heap, (prior, d2))
             
-        return x,yret
+        return xret,yret
     
     def run(self):
         self.heapdict = PQDict()
         self.data = {}
-        initx = np.linspace(self.a, self.b, self.init_points)
+        initx = np.linspace(0, 1, self.init_points)
         initdelta = (initx[1] - initx[0])/2.
         inity = []
         for x in initx:
-            yret = self.f(x)
-            yield (x, yret)
-            inity.append(yret)
+            xret = self.scale_to_x(x)
+            yret = self.f(xret)
+            yield (xret, yret)
+            inity.append(self.get_y(yret))
+            
+        
+        self.scale_from_y = lambda y: (y-min(inity)-5)/(max(inity)+10-min(inity)) 
+        inity = [self.scale_from_y(y) for y in inity]
         for (i,xp) in enumerate(initx[0:-1]):
-            d = [initx[i], self.get_y(inity[i]),
-                 initx[i+1], self.get_y(inity[i+1]),
+            d = [initx[i],   inity[i],
+                 initx[i+1], inity[i+1],
                 ]
             newx = xp + initdelta
             
@@ -125,9 +132,9 @@ def test():
     import matplotlib.pyplot as plt
     from matplotlib import animation
 
-    f = lambda x : stats.cauchy.pdf(x,0.73,.3)
+    f = lambda x : stats.cauchy.pdf(x,0.4,0.1)
     fig = plt.figure()
-    ax = plt.axes(xlim=(-6, 6), ylim=(-0, 1.1))
+    ax = plt.axes(xlim=(-5, 5), ylim=(-0, 1.1))
     x = []
     y = []
     line, = ax.plot(x, y, 'o',lw=2)
@@ -135,7 +142,7 @@ def test():
     
     def init():
         global s, it, x, y
-        s = AdaptiveSampler(f, -4, 5.1, max_points = 50, epsilon = 1e-1)
+        s = AdaptiveSampler(f, -5, 5, max_points = 500, epsilon = 0)
         it = s.run()
         x = []
         y = []
@@ -149,10 +156,11 @@ def test():
         line.set_data(x,y)
         return line,
     anim = animation.FuncAnimation(fig, animate, init_func = init,
-                                   frames=80, interval=0, blit=True, 
+                                   frames=80, interval=300, blit=True, 
                                    )
     plt.show()
     plt.plot(x,y, marker = 'o')
+    plt.plot(sorted(x),f(sorted(x)), 'gd-')
     plt.show()
 
 #test()
