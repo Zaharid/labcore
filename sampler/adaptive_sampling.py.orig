@@ -13,8 +13,7 @@ pi = np.pi
 class AdaptiveSampler(object):
     def __init__(self, f, a ,b, sample_over = None, 
                  min_angle =  0.07, init_points = 7, 
-                 epsilon = 0, max_points = 300,
-                 yscale = None, measure_at = None):
+                 epsilon = 0, max_points = 300):
         
         self.f = f
         self.a = a
@@ -97,7 +96,7 @@ class AdaptiveSampler(object):
             
         
         #self.scale_from_y = lambda y: (y-min(inity))/(max(inity)-min(inity)) 
-        self.scale_from_y = lambda y: (y) 
+        self.scale_from_y = lambda y: (y/100) 
         inity = [self.scale_from_y(y) for y in inity]
         for (i,xp) in enumerate(initx[0:-1]):
             d = [initx[i],   inity[i],
@@ -128,17 +127,23 @@ class AdaptiveSampler(object):
         return self.run()
         
         
-def test(yscale = 1):
+def test():
     global s, it, x, y
     from scipy import stats
     import matplotlib.pyplot as plt
     from matplotlib import animation
     
-    
+    yscale = 1
 
+<<<<<<< HEAD
     f = lambda x : yscale * stats.cauchy.pdf(x,0.73,.3)
     fig = plt.figure()
     ax = plt.axes(xlim=(-6, 6), ylim=(-0, yscale * 1.1))
+=======
+    f = lambda x :50* stats.cauchy.pdf(x,0.73,.3)
+    fig = plt.figure()
+    ax = plt.axes(xlim=(-60, 60), ylim=(-0, 51.1))
+>>>>>>> adapmadness
     x = []
     y = []
     line, = ax.plot(x, y, 'o',lw=2)
@@ -146,7 +151,11 @@ def test(yscale = 1):
     
     def init():
         global s, it, x, y
-        s = AdaptiveSampler(f, -4, 5.1, max_points = 300, epsilon = 0)
+<<<<<<< HEAD
+        s = AdaptiveSampler(f, -4, 5.1, max_points = 90, epsilon = 0, min_angle = 0)
+=======
+        s = AdaptiveSampler(f, -40, 51, max_points = 500, epsilon = 0, min_angle = 2e-4)
+>>>>>>> adapmadness
         it = s.run()
         x = []
         y = []
@@ -163,6 +172,13 @@ def test(yscale = 1):
                                    frames=80, interval=0, blit=True, 
                                    )
     plt.show()
+<<<<<<< HEAD
     plt.plot(x,y, marker = 'o', drawstyle = 'steps')
+    plt.show()
+
+#test()
+=======
+    plt.plot(x,y, marker = 'o')
     plt.plot(sorted(x),f(sorted(x)))
     plt.show()
+>>>>>>> adapmadness
