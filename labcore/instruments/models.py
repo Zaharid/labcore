@@ -9,7 +9,7 @@ from django.contrib.contenttypes import generic
 from django.core.exceptions import ObjectDoesNotExist
 #from django.db.models import signals
 
-from zutils.utils import make_signature
+from labcore.utils import make_signature
 
 
 import utils

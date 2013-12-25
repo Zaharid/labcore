@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from django.test import TestCase
 
-from instruments  import device_comm
-from instruments.models import BaseInstrument, Instrument, Command, Parameter
+from labcore.instruments  import device_comm
+from labcore.instruments.models import BaseInstrument, Instrument
 
 
 class TestModelLogic(TestCase):

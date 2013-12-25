@@ -106,18 +106,18 @@ class AdaptiveSampler(object):
             del self.data[x]
             del self.heapdict[x]
 
-    
-    
-        
+            
 
     def run(self):
         self.heapdict = PQDict()
         self.data = {}
         initx = np.linspace(0, 1, self.init_points)
+        n_points = self.init_points
         if self.measure_at is not None:
             xm = [(x-self.a)/(self.b-self.a) for x in self.measure_at]    
             initx = np.concatenate((initx, xm))
             initx.sort()
+            n_points += len(self.measure_at)
             
         #initdelta = (initx[1] - initx[0])/2.
         inity = []
@@ -142,7 +142,7 @@ class AdaptiveSampler(object):
             
             self.update_data(x, d)
         
-        n_points = self.init_points
+        
         while n_points < self.max_points:
             try:
                 x = self.heapdict.top()
@@ -193,10 +193,10 @@ def test(**kwargs):
         line.set_data(x,y)
         return line,
     anim = animation.FuncAnimation(fig, animate, init_func = init,
-                                   frames=80, interval=100, blit=True, 
+                                   frames=80, interval=300, blit=True, 
                                    )
     plt.show()
-    plt.plot(x,y, marker = 'o', drawstyle = 'steps')
+    plt.plot(x,y, 'o')
     plt.plot(sorted(x),f(sorted(x)))
     mx = np.linspace(np.min(x),np.max(x), 50000)
     plt.plot(mx,f(mx))

@@ -1,9 +1,6 @@
 -Testing for adap_sampling.
--Base adap_sampling on heapq again.
 -Parameter checking for commands (maybe in python 3 with kwarg only).
 -Command processors.
--Figure out how to set scale for adaptative_sampling.
--Figure out a package structure.
 -IOObject Models.
 -Github and blog.
 -Experiment results on db.

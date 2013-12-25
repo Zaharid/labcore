@@ -70,7 +70,7 @@ def next_not_controlled(name):
             return devobj
 
 def associate_known():
-    from instruments import models
+    from .instruments import models
     instruments = []
     for devname, devlist in find_all().items():
         for devobj in devlist:
@@ -97,14 +97,14 @@ def create_instrument(name, base_instrument, device_id, devobj = None):
     return ins
     
 def find_unknown():
-    from instruments import models
+    from .instruments import models
     alldevs = find_all()
     unknown = {k: v for k,v in alldevs.items() 
         if not models.Instrument.objects.filter(device_id = k).exists()}
     return unknown
 
 def load_instrument(name = None, **kwargs):
-    from instruments import models
+    from .instruments import models
     ins = models.Instrument.objects.get(name = name, **kwargs)
     ins.prepare()
     return ins
