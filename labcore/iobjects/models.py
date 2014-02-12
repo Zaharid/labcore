@@ -20,12 +20,16 @@ class Parameter(mg.EmbeddedDocument):
     default = fields.DynamicField()
     value = fields.DynamicField()
     to = fields.ReferenceField('IObject')
+    
+        
+    def __unicode__(self):
+        return self.name
 
     
 
     
 
-class IObject(mg.DocumentIObject):
+class IObject(mg.Document):
 
     
     meta = {'allow_inheritance': True}
@@ -41,6 +45,16 @@ class IObject(mg.DocumentIObject):
     executed = fields.BooleanField(default = False)
     log_output = fields.BooleanField(default = False)
     
+    
+    def bind_to_input(params, to):
+        for param in params:
+            if isinstance(param, str):
+                param = 1
+                
+            
+        
+        
+    
     def run(self):
         params = {}
         for inp in self.inputs:
@@ -55,13 +69,19 @@ class IObject(mg.DocumentIObject):
            out.value = results[out.name]
          
         self.executed = True
+        return results
+    
+        
+    def __unicode__(self):
+        return self.name
         
 class IOSimple(IObject):
     
     def execute(self, **kwargs):
         results = {}
+        keys = iter(kwargs)
         for out in self.outputs:
-            results[out.name] = "OK"
+            results[out.name] = kwargs[ next(keys) ]
         
         return results
     

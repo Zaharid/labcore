@@ -7,8 +7,8 @@ Created on Tue Feb 11 18:42:58 2014
 
 import models
 
-i1 = models.Parameter(name = "i1")
-i2 = models.Parameter(name = "i2")
+i1 = models.Parameter(name = "i1", value = 1)
+i2 = models.Parameter(name = "i2", value = 2)
 o1 = models.Parameter(name = "o1")
 o2 = models.Parameter(name = "o2")
 
