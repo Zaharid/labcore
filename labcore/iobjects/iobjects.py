@@ -8,13 +8,16 @@ Created on Tue Feb 11 17:18:00 2014
 import mongoengine as mg
 from mongoengine import fields
 
-mg.connect('l2')
+mg.connect('labcore')
 
 class Parameter(mg.EmbeddedDocument):
     name = fields.StringField(required = True, max_length=256)
     ptype = fields.StringField(default = "STR")
     default = fields.DynamicField()
     value = fields.DynamicField()
+    
+    def __unicode__(self):
+        return self.name
 
     
 
@@ -29,9 +32,15 @@ class IObject(mg.Document):
     def run_(self):
         results = self.execute()
     
+    def __unicode__(self):
+        return self.name
+    
 
 class IONode():
     node = mg.ReferenceField(IObject, reverse_delete_rule = mg.CASCADE)
+    
+    def __unicode__(self):
+        return self.node.name
     
     
 class IOGraph():
