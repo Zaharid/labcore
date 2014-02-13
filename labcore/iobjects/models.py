@@ -65,23 +65,25 @@ class IObject(mg.Document):
             l += p.parents
             
         return l
-    
+        
+    @property
     def parents(self):
         return [inp.to for inp in self.inputs 
             if inp.input_method == "io_input"]
         
     
-    def _rec_graph(self, G, parents):
-        for p in parents:
-            G.add_node(p)
-            G.add_edge(self, p)
-            p._rec_graph(G, p.parents)
+    def _rec_graph(self, G, links):
+        for link in links:
+            to = link.to
+            G.add_node(to)
+            G.add_edge(self, to, {'link':link} )
+            to._rec_graph(G, to.links)
             
         
     def build_graph(self, ):
-        G = networkx.Graph()
+        G = networkx.MultiGraph()
         G.add_node(self)
-        self._rec_graph(G, self.parents)
+        self._rec_graph(G, self.links)
         return G
         
     address = fields.StringField()

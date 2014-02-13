@@ -134,7 +134,7 @@ class TestModelLogic(TestCase):
 #         
 #         f  =  c.make_callable(ins)
 #         doclines =  f.__doc__.split('\n')
-#         self.assertEqual(doclines[0], c.description)
+#         self.assertEqual(doclines[0], c.description)mongoengine meta cls false
 #         self.assertEqual(doclines[2], c.command_string)
 #         self.assertEqual(f("A", "B"), "xxx A, B?")
 #         self.assertEqual(f("A"), "xxx A, C?")
