@@ -6,6 +6,7 @@ Created on Tue Feb 11 17:18:00 2014
 """
 
 import mongoengine as mg
+import networkx
 from mongoengine import fields
 
 mg.connect('labcore')
@@ -40,17 +41,78 @@ class IObject(mg.Document):
     outputs = fields.ListField(mg.EmbeddedDocumentField(Parameter))
     dispays = fields.ListField(mg.EmbeddedDocumentField(Parameter))
     
+    def _paramdict(self, paramlist):
+        return {param.name : param for param in paramlist}
+
+    def inputdict(self):
+        return self._paramdict(self.inputs)
     
+    def displaydict(self):
+        return self._paramdict(self.displays)
+    
+    def outputdict(self):
+        return self._paramdict(self.outputs)
+    
+    @property
+    def links(self):
+        return [inp for inp in self.inputs if inp.input_method == "io_input"]
+    
+    @property
+    def antecessors(self):
+        l = self.parents
+        parents = list(l)
+        for p in parents:
+            l += p.parents
+            
+        return l
+    
+    def parents(self):
+        return [inp.to for inp in self.inputs 
+            if inp.input_method == "io_input"]
+        
+    
+    def _rec_graph(self, G, parents):
+        for p in parents:
+            G.add_node(p)
+            G.add_edge(self, p)
+            p._rec_graph(G, p.parents)
+            
+        
+    def build_graph(self, ):
+        G = networkx.Graph()
+        G.add_node(self)
+        self._rec_graph(G, self.parents)
+        return G
+        
     address = fields.StringField()
     executed = fields.BooleanField(default = False)
     log_output = fields.BooleanField(default = False)
     
     
-    def bind_to_input(params, to):
-        for param in params:
-            if isinstance(param, str):
-                param = 1
+    def bind_to_input(self, outputs, to, inputs):
+
+        if to in self.antecessors:
+            raise ValueError("Recursive binding is not allowed")
+        
+        for (outp, inp) in zip(outputs, inputs):
+            if isinstance(outp, str):
+                outp = self.outputdict[outp]
+            if isinstance(inp, str):
+                inp = to.inputdict[inp]
+            inp.input_method = 'io_input'
+            inp.to = to
                 
+    def bind_to_output(self, inputs, of , outputs):
+        if self in of.antecessors:
+            raise ValueError("Recursive binding is not allowed")
+        
+        for (outp, inp) in zip(outputs, inputs):
+            if isinstance(outp, str):
+                outp = of.outputdict[outp]
+            if isinstance(inp, str):
+                inp = self.inputdict[inp]
+            inp.input_method = 'io_input'
+            inp.to = of
             
         
         
