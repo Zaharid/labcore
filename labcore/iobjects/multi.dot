@@ -1,0 +1,6 @@
+graph G {
+IO1;
+IO0;
+IO1 -- IO0  [label=i1, key=0];
+IO1 -- IO0  [label=i2, key=1];
+}

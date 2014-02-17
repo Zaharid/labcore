@@ -11,20 +11,33 @@ from mongoengine import fields
 
 mg.connect('labcore')
 
-INPUT_METHODS = ('constant', 'user_input', 'io_input')
+
 
 class Parameter(mg.EmbeddedDocument):
     name = fields.StringField(required = True, max_length=256, unique=True)
     param_type = fields.StringField(default="STR")
-    input_method = fields.StringField(choices=INPUT_METHODS, 
-                                      default="user_input")
+    
     default = fields.DynamicField()
     value = fields.DynamicField()
-    to = fields.ReferenceField('IObject')
     
         
     def __unicode__(self):
         return self.name
+        
+        
+        
+INPUT_METHODS = ('constant', 'user_input', 'io_input')
+class Input(Parameter):
+    input_method = fields.StringField(choices=INPUT_METHODS, 
+                                      default="user_input")
+
+    input_display = fields.StringField()
+    fr = fields.ReferenceField('IObject')
+    fr_output = fields.StringField()
+    
+class Output(Parameter):
+    
+    display_output = fields.BooleanField(default = True)
 
     
 
@@ -37,25 +50,29 @@ class IObject(mg.Document):
     
     
     name = fields.StringField(required = True, max_length=256)
-    inputs = fields.ListField(mg.EmbeddedDocumentField(Parameter))
-    outputs = fields.ListField(mg.EmbeddedDocumentField(Parameter))
-    dispays = fields.ListField(mg.EmbeddedDocumentField(Parameter))
+    inputs = fields.ListField(mg.EmbeddedDocumentField(Input))
+    outputs = fields.ListField(mg.EmbeddedDocumentField(Output))
+    #dispays = fields.ListField(mg.EmbeddedDocumentField(Parameter))
     
     def _paramdict(self, paramlist):
         return {param.name : param for param in paramlist}
 
+    @property    
     def inputdict(self):
         return self._paramdict(self.inputs)
     
+    @property
     def displaydict(self):
         return self._paramdict(self.displays)
     
+    @property    
     def outputdict(self):
         return self._paramdict(self.outputs)
     
     @property
     def links(self):
         return [inp for inp in self.inputs if inp.input_method == "io_input"]
+    
     
     @property
     def antecessors(self):
@@ -74,47 +91,55 @@ class IObject(mg.Document):
     
     def _rec_graph(self, G, links):
         for link in links:
-            to = link.to
-            G.add_node(to)
-            G.add_edge(self, to, {'link':link} )
-            to._rec_graph(G, to.links)
+            fr = link.fr
+            G.add_node(fr)
+            G.add_edge(self, fr, link=link, 
+                       label = "%s->%s"%(link.name, link.fr_output)
+            )
+            fr._rec_graph(G, fr.links)
+            
             
         
     def build_graph(self, ):
-        G = networkx.MultiGraph()
+        G = networkx.MultiDiGraph()
         G.add_node(self)
         self._rec_graph(G, self.links)
         return G
+    
+    def build_form(self):
+        pass
         
     address = fields.StringField()
     executed = fields.BooleanField(default = False)
     log_output = fields.BooleanField(default = False)
     
     
-    def bind_to_input(self, outputs, to, inputs):
+    def bind_to_input(self, fr, outputs, inputs):
 
-        if to in self.antecessors:
+        if fr in self.antecessors:
             raise ValueError("Recursive binding is not allowed")
         
         for (outp, inp) in zip(outputs, inputs):
             if isinstance(outp, str):
                 outp = self.outputdict[outp]
             if isinstance(inp, str):
-                inp = to.inputdict[inp]
+                inp = fr.inputdict[inp]
             inp.input_method = 'io_input'
-            inp.to = to
+            inp.fr = self
+            inp.fr_output = outp.name
                 
-    def bind_to_output(self, inputs, of , outputs):
-        if self in of.antecessors:
+    def bind_to_output(self, to, inputs , outputs):
+        if self in to.antecessors:
             raise ValueError("Recursive binding is not allowed")
         
         for (outp, inp) in zip(outputs, inputs):
             if isinstance(outp, str):
-                outp = of.outputdict[outp]
+                outp = to.outputdict[outp]
             if isinstance(inp, str):
                 inp = self.inputdict[inp]
             inp.input_method = 'io_input'
-            inp.to = of
+            inp.fr= to
+            inp.fr_output = outp.name
             
         
         

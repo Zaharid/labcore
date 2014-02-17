@@ -20,6 +20,9 @@ for i in range(5):
     
     io.save()                
     ios += [io]
-    
+    globals()['io%i'%i] = io
     
 io0= ios[0]
+io0.bind_to_input(ios[1],["o1"],['i1'])
+
+io0.bind_to_input(ios[1],["o2"],['i2'])
