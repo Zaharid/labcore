@@ -9,11 +9,16 @@ import mongoengine as mg
 import networkx
 from mongoengine import fields
 
+from IPython.html import widgets
+from IPython.display import display
+
 mg.connect('labcore')
 
 
 
 class Parameter(mg.EmbeddedDocument):
+    meta = {'allow_inheritance': True}
+    
     name = fields.StringField(required = True, max_length=256, unique=True)
     param_type = fields.StringField(default="STR")
     
@@ -35,11 +40,20 @@ class Input(Parameter):
     fr = fields.ReferenceField('IObject')
     fr_output = fields.StringField()
     
+
+OUTPUT_TYPES = ('display', 'hidden')
+    
 class Output(Parameter):
     
-    display_output = fields.BooleanField(default = True)
+    input_method = fields.StringField(choices=OUTPUT_TYPES, 
+                                      default="display")
+    to = fields.ReferenceField('IObject')
+    
 
     
+
+
+
 
     
 
@@ -71,7 +85,11 @@ class IObject(mg.Document):
     
     @property
     def links(self):
-        return [inp for inp in self.inputs if inp.input_method == "io_input"]
+        return (inp for inp in self.inputs if inp.input_method == "io_input")
+    
+    @property
+    def free_inputs(self):
+        return (inp for inp in self.inputs if inp.input_method=='user_input')
     
     
     @property
@@ -85,8 +103,8 @@ class IObject(mg.Document):
         
     @property
     def parents(self):
-        return [inp.to for inp in self.inputs 
-            if inp.input_method == "io_input"]
+        return {inp.fr for inp in self.inputs 
+            if inp.input_method == "io_input"}
         
     
     def _rec_graph(self, G, links):
@@ -164,7 +182,48 @@ class IObject(mg.Document):
     def __unicode__(self):
         return self.name
         
-class IOSimple(IObject):
+
+    
+    
+
+default_spec = ()
+    
+class IPIObject(IObject):
+    
+    def _add_classes(self, dic):
+        for item in dic:
+            item.add_class(dic[item])
+    
+    def make_control(self):
+        control_container = widgets.ContainerWidget()
+        display(control_container)
+       
+        dic = {control_container: 'control-container'}
+        self._rec_form(control_container, dic)
+        
+        
+        control_container.children =(control_container.children + [widgets.LatexWidget(value = "IObject Widget")])
+        
+        
+        self._add_classes(dic)
+        return control_container
+    
+    def _rec_form(self, control_container, dic):
+        iocont =  widgets.ContainerWidget()
+        dic[iocont] = ('iobject-container')
+        iocont.children = iocont.children + [widgets.LatexWidget(value = self.name)]
+        control_container.children = control_container.children + [iocont]
+        for inp in self.free_inputs:
+            w = widgets.TextWidget(description = inp.name)
+            iocont.children = iocont.children + [w]
+        
+        button = widgets.ButtonWidget(description = "Execute %s" % self.name)        
+        iocont.children = iocont.children + [button]
+        
+        for p in self.parents:
+            p._rec_form(control_container, dic)
+
+class IOSimple(IPIObject):
     
     def execute(self, **kwargs):
         results = {}
@@ -173,10 +232,9 @@ class IOSimple(IObject):
             results[out.name] = kwargs[ next(keys) ]
         
         return results
-    
-    
-    
-
+            
+            
+        
 
     
 

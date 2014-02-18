@@ -9,10 +9,10 @@ import models
 
 ios = []
 for i in range(5):
-    i1 = models.Parameter(name = "i1", value = 1)
-    i2 = models.Parameter(name = "i2", value = 2)
-    o1 = models.Parameter(name = "o1")
-    o2 = models.Parameter(name = "o2")
+    i1 = models.Input(name = "i1", value = 1)
+    i2 = models.Input(name = "i2", value = 2)
+    o1 = models.Output(name = "o1")
+    o2 = models.Output(name = "o2")
     
     io = models.IOSimple(name = "IO%i"%i)
     io.inputs = [i1,i2]
