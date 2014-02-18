@@ -11,6 +11,7 @@ from mongoengine import fields
 
 from IPython.html import widgets
 from IPython.display import display
+from IPython.utils.traitlets import NoDefaultSpecified, Undefined
 
 mg.connect('labcore')
 
@@ -165,11 +166,13 @@ class IObject(mg.Document):
     def run(self):
         params = {}
         for inp in self.inputs:
-            if inp.input_method == "io_input" and not inp.to.executed:
+            if inp.input_method == 'io_input' and not inp.to.executed:
                 #TODO: Wait,etc                
-                inp.to.run()
-                
+                inp.fr.run()
+            elif inp.input_method == 'user_input':
+                inp.value = inp.widget.value
             params[inp.name] = inp.value
+            
         results = self.execute(**params)
         
         for out in self.outputs:
@@ -187,6 +190,12 @@ class IObject(mg.Document):
     
 
 default_spec = ()
+
+def add_child(container, child):
+    container.children = container.children + [child]
+
+def get_none():
+    return NoDefaultSpecified
     
 class IPIObject(IObject):
     
@@ -194,34 +203,46 @@ class IPIObject(IObject):
         for item in dic:
             item.add_class(dic[item])
     
+    
     def make_control(self):
         control_container = widgets.ContainerWidget()
-        display(control_container)
+        
        
-        dic = {control_container: 'control-container'}
-        self._rec_form(control_container, dic)
+        css_classes = {control_container: 'control-container'}
         
         
-        control_container.children =(control_container.children + [widgets.LatexWidget(value = "IObject Widget")])
+        
+        add_child(control_container, 
+                  widgets.LatexWidget(value = "IObject Widget"))
+        
+        self._rec_form(control_container, css_classes)
         
         
-        self._add_classes(dic)
+        display(control_container)        
+        self._add_classes(css_classes)
         return control_container
     
-    def _rec_form(self, control_container, dic):
-        iocont =  widgets.ContainerWidget()
-        dic[iocont] = ('iobject-container')
-        iocont.children = iocont.children + [widgets.LatexWidget(value = self.name)]
-        control_container.children = control_container.children + [iocont]
-        for inp in self.free_inputs:
-            w = widgets.TextWidget(description = inp.name)
-            iocont.children = iocont.children + [w]
         
-        button = widgets.ButtonWidget(description = "Execute %s" % self.name)        
-        iocont.children = iocont.children + [button]
+    
+    def _rec_form(self, control_container, css_classes):
+        iocont =  widgets.ContainerWidget()
+        css_classes[iocont] = ('iobject-container')
+        add_child(iocont, widgets.LatexWidget(value = self.name))
+        add_child(control_container, iocont)
+        for inp in self.free_inputs:
+    
+            w = widgets.TextWidget(description = inp.name, value = inp.value,
+                                   default = inp.default)
+            inp.widget = w
+            add_child(iocont,w)
+        
+        button = widgets.ButtonWidget(description = "Execute %s" % self.name)
+        button.on_click(self.run)        
+        add_child(iocont, button)
+        
         
         for p in self.parents:
-            p._rec_form(control_container, dic)
+            p._rec_form(control_container, css_classes)
 
 class IOSimple(IPIObject):
     

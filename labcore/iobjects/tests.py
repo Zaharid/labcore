@@ -9,8 +9,8 @@ import models
 
 ios = []
 for i in range(5):
-    i1 = models.Input(name = "i1", value = 1)
-    i2 = models.Input(name = "i2", value = 2)
+    i1 = models.Input(name = "i1", default = 'uno')
+    i2 = models.Input(name = "i2", value = 'dos')
     o1 = models.Output(name = "o1")
     o2 = models.Output(name = "o2")
     
