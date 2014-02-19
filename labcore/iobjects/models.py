@@ -46,15 +46,10 @@ OUTPUT_TYPES = ('display', 'hidden')
     
 class Output(Parameter):
     
-    input_method = fields.StringField(choices=OUTPUT_TYPES, 
+    output_type = fields.StringField(choices=OUTPUT_TYPES, 
                                       default="display")
     to = fields.ReferenceField('IObject')
     
-
-    
-
-
-
 
     
 
@@ -86,14 +81,18 @@ class IObject(mg.Document):
     
     @property
     def links(self):
-        return (inp for inp in self.inputs if inp.input_method == "io_input")
+        return (inp for inp in self.inputs if inp.input_method == 'io_input')
     
     @property
     def free_inputs(self):
         return (inp for inp in self.inputs if inp.input_method=='user_input')
     
-    
+
     @property
+    def display_outputs(self):
+        return (out for out in self.outputs if out.output_type == 'display')
+   
+   @property
     def antecessors(self):
         l = self.parents
         parents = list(l)
@@ -237,7 +236,9 @@ class IPIObject(IObject):
             add_child(iocont,w)
         
         button = widgets.ButtonWidget(description = "Execute %s" % self.name)
-        button.on_click(self.run)        
+        def _run(b):
+            self.run()
+        button.on_click(_run)        
         add_child(iocont, button)
         
         
