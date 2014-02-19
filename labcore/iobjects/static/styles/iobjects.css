@@ -1,0 +1,15 @@
+/*
+Placeholder for custom user CSS
+
+mainly to be overridden in profile/static/custom/custom.css
+
+This will always be an empty file in IPython
+*/
+.iobject-container{
+	border: 1px solid black;
+	border-radius: 5px;
+	background-color: #eeeeff;
+}
+.executed{
+	background-color:#eeffee;
+}

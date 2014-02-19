@@ -51,7 +51,9 @@ class Output(Parameter):
     to = fields.ReferenceField('IObject')
     
 
-    
+
+class RunInfo(object):
+    pass    
 
 class IObject(mg.Document):
 
@@ -92,7 +94,7 @@ class IObject(mg.Document):
     def display_outputs(self):
         return (out for out in self.outputs if out.output_type == 'display')
    
-   @property
+    @property
     def antecessors(self):
         l = self.parents
         parents = list(l)
@@ -144,7 +146,7 @@ class IObject(mg.Document):
                 inp = fr.inputdict[inp]
             inp.input_method = 'io_input'
             inp.fr = self
-            inp.fr_output = outp.name
+            inp.fr_output = outp
                 
     def bind_to_output(self, to, inputs , outputs):
         if self in to.antecessors:
@@ -157,27 +159,35 @@ class IObject(mg.Document):
                 inp = self.inputdict[inp]
             inp.input_method = 'io_input'
             inp.fr= to
-            inp.fr_output = outp.name
+            inp.fr_output = outp
             
         
         
     
     def run(self):
         params = {}
+        runinfo = RunInfo()
         for inp in self.inputs:
-            if inp.input_method == 'io_input' and not inp.to.executed:
+            if inp.input_method == 'io_input':
+                if not inp.fr.executed:
                 #TODO: Wait,etc                
-                inp.fr.run()
+                    inp.fr.run()
+                inp.value = inp.fr_output.value
             elif inp.input_method == 'user_input':
                 inp.value = inp.widget.value
             params[inp.name] = inp.value
             
-        results = self.execute(**params)
-        
-        for out in self.outputs:
-           out.value = results[out.name]
+        try:
+            results = self.execute(**params)
+        except Exception as e:
+            runinfo.success = False
+            runinfo.error = e
+        else:
+            for out in self.outputs:
+                out.value = results[out.name]
          
-        self.executed = True
+            self.executed = True
+            
         return results
     
         
@@ -197,6 +207,13 @@ def get_none():
     return NoDefaultSpecified
     
 class IPIObject(IObject):
+    
+    
+    def run(self):
+        super(IPIObject,self).run()
+        for out in self.display_outputs:
+            out.widget.value = "<strong>%s</strong>: %r" %(out.name, out.value)
+        
     
     def _add_classes(self, dic):
         for item in dic:
@@ -233,6 +250,11 @@ class IPIObject(IObject):
             w = widgets.TextWidget(description = inp.name, value = inp.value,
                                    default = inp.default)
             inp.widget = w
+            add_child(iocont,w)
+        
+        for out in self.display_outputs:
+            w = widgets.HTMLWidget()
+            out.widget = w
             add_child(iocont,w)
         
         button = widgets.ButtonWidget(description = "Execute %s" % self.name)
