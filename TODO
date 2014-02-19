@@ -1,7 +1,8 @@
 -Testing for adap_sampling.
 -Parameter checking for commands (maybe in python 3 with kwarg only).
 -Command processors.
--IOObject Models.
 -Experiment results on db.
 -Report tools.
--Implement panels, "experiment forms" (this is a whole world).
+-Implement "experiment forms.
+-Widget types.
+-Execute.
