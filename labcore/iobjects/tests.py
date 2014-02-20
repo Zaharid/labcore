@@ -23,4 +23,8 @@ for i in range(5):
     globals()['io%i'%i] = io
     
 io0= ios[0]
-io0.bind_to_input(ios[1],["o1"],['i1'])
+io0.bind_to_input(ios[1],["o1", "o2"],['i1','i2'])
+ios[1].bind_to_input(ios[2],['o1'],['i1'])
+ios[1].bind_to_input(ios[3],['o2'],['i2'])
+ios[3].bind_to_input(ios[4],['o1'],['i1'])
+ios[2].bind_to_input(ios[4],['o2'],['i2'])

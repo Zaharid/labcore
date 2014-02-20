@@ -4,6 +4,8 @@ Created on Tue Feb 11 17:18:00 2014
 
 @author: zah
 """
+import itertools
+
 
 import mongoengine as mg
 import networkx
@@ -11,7 +13,6 @@ from mongoengine import fields
 
 from IPython.html import widgets
 from IPython.display import display
-from IPython.utils.traitlets import NoDefaultSpecified, Undefined
 
 mg.connect('labcore')
 
@@ -39,7 +40,7 @@ class Input(Parameter):
 
     input_display = fields.StringField()
     fr = fields.ReferenceField('IObject')
-    fr_output = fields.StringField()
+    fr_output = fields.EmbeddedDocumentField('Output')
     
 
 OUTPUT_TYPES = ('display', 'hidden')
@@ -48,7 +49,11 @@ class Output(Parameter):
     
     output_type = fields.StringField(choices=OUTPUT_TYPES, 
                                       default="display")
+    
+    is_connected = fields.BooleanField(default = False)                                  
     to = fields.ReferenceField('IObject')
+    to_input = fields.EmbeddedDocumentField('Input')
+    
     
 
 
@@ -96,12 +101,37 @@ class IObject(mg.Document):
    
     @property
     def antecessors(self):
-        l = self.parents
-        parents = list(l)
-        for p in parents:
-            l += p.parents
+        for a in self._antecessors(set()):
+            yield a
             
-        return l
+    
+    def _antecessors(self, existing):
+        p_set = set(self.parents)
+        
+        new_antecessors = p_set-existing
+        existing |= p_set
+
+        for a in new_antecessors:
+            yield a
+        for a in new_antecessors:
+            #yield a
+            for na in a._antecessors(existing):
+                yield na
+        
+    
+    @property
+    def graph(self):
+        #TODO: Cache?
+        return self.build_graph()
+    
+#==============================================================================
+#     @property
+#     def antecessors_iter(self):
+#         for p in self.parents:
+#             for a in p.antecessors_iter:
+#                 yield a
+#             yield p
+#==============================================================================
         
     @property
     def parents(self):
@@ -113,7 +143,7 @@ class IObject(mg.Document):
         for link in links:
             fr = link.fr
             G.add_node(fr)
-            G.add_edge(self, fr, link=link, 
+            G.add_edge(fr, self, link=link, 
                        label = "%s->%s"%(link.name, link.fr_output)
             )
             fr._rec_graph(G, fr.links)
@@ -126,39 +156,42 @@ class IObject(mg.Document):
         self._rec_graph(G, self.links)
         return G
     
-    def build_form(self):
-        pass
+    def draw_graph(self):
+        G = self.build_graph()
+        networkx.draw(G)
         
     address = fields.StringField()
     executed = fields.BooleanField(default = False)
     log_output = fields.BooleanField(default = False)
     
     
-    def bind_to_input(self, fr, outputs, inputs):
+    def bind_to_input(self, to, outputs, inputs):
 
-        if fr in self.antecessors:
+        if to in self.antecessors:
             raise ValueError("Recursive binding is not allowed")
         
         for (outp, inp) in zip(outputs, inputs):
             if isinstance(outp, str):
                 outp = self.outputdict[outp]
             if isinstance(inp, str):
-                inp = fr.inputdict[inp]
+                inp = to.inputdict[inp]
             inp.input_method = 'io_input'
             inp.fr = self
+            outp.to = to
             inp.fr_output = outp
+            outp.to_input = inp
                 
-    def bind_to_output(self, to, inputs , outputs):
-        if self in to.antecessors:
+    def bind_to_output(self, fr, inputs , outputs):
+        if self in fr.antecessors:
             raise ValueError("Recursive binding is not allowed")
         
         for (outp, inp) in zip(outputs, inputs):
             if isinstance(outp, str):
-                outp = to.outputdict[outp]
+                outp = fr.outputdict[outp]
             if isinstance(inp, str):
                 inp = self.inputdict[inp]
             inp.input_method = 'io_input'
-            inp.fr= to
+            inp.fr= fr
             inp.fr_output = outp
             
         
@@ -167,11 +200,19 @@ class IObject(mg.Document):
     def run(self):
         params = {}
         runinfo = RunInfo()
+        
+
+        for p in self.parents:
+            if (not p.executed or 
+                any(not ant.executed for ant in p.antecessors)):
+                p.run()
+           
+                
+            
+        
         for inp in self.inputs:
+            
             if inp.input_method == 'io_input':
-                if not inp.fr.executed:
-                #TODO: Wait,etc                
-                    inp.fr.run()
                 inp.value = inp.fr_output.value
             elif inp.input_method == 'user_input':
                 inp.value = inp.widget.value
@@ -184,7 +225,12 @@ class IObject(mg.Document):
             runinfo.error = e
         else:
             for out in self.outputs:
-                out.value = results[out.name]
+                last_value = out.value
+                new_value = results[out.name]
+                if last_value != new_value and out.is_connected:
+                    out.to.executed = False
+                out.value = new_value
+                    
          
             self.executed = True
             
@@ -203,14 +249,13 @@ default_spec = ()
 def add_child(container, child):
     container.children = container.children + [child]
 
-def get_none():
-    return NoDefaultSpecified
     
 class IPIObject(IObject):
     
     
     def run(self):
         super(IPIObject,self).run()
+        print("%srun!"%self.name)
         for out in self.display_outputs:
             out.widget.value = "<strong>%s</strong>: %r" %(out.name, out.value)
         
@@ -230,8 +275,11 @@ class IPIObject(IObject):
         
         add_child(control_container, 
                   widgets.LatexWidget(value = "IObject Widget"))
+                  
         
-        self._rec_form(control_container, css_classes)
+        for io in itertools.chain([self],self.antecessors):
+        
+            io._add_form(control_container, css_classes)
         
         
         display(control_container)        
@@ -240,7 +288,7 @@ class IPIObject(IObject):
     
         
     
-    def _rec_form(self, control_container, css_classes):
+    def _add_form(self, control_container, css_classes):
         iocont =  widgets.ContainerWidget()
         css_classes[iocont] = ('iobject-container')
         add_child(iocont, widgets.LatexWidget(value = self.name))
@@ -250,6 +298,11 @@ class IPIObject(IObject):
             w = widgets.TextWidget(description = inp.name, value = inp.value,
                                    default = inp.default)
             inp.widget = w
+            
+            def set_exec(w):
+                self.executed = False
+                print(self.executed)
+            w.on_trait_change(set_exec, name = 'value') 
             add_child(iocont,w)
         
         for out in self.display_outputs:
@@ -258,14 +311,14 @@ class IPIObject(IObject):
             add_child(iocont,w)
         
         button = widgets.ButtonWidget(description = "Execute %s" % self.name)
+        
         def _run(b):
             self.run()
         button.on_click(_run)        
         add_child(iocont, button)
         
         
-        for p in self.parents:
-            p._rec_form(control_container, css_classes)
+        
 
 class IOSimple(IPIObject):
     
