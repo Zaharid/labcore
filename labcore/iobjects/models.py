@@ -4,6 +4,8 @@ Created on Tue Feb 11 17:18:00 2014
 
 @author: zah
 """
+from __future__ import absolute_import
+
 import itertools
 
 
@@ -14,8 +16,9 @@ from mongoengine import fields
 from IPython.html import widgets
 from IPython.display import display
 
-mg.connect('labcore')
+from . mongotraits import TraitDocument
 
+mg.connect('labcore')
 
 
 class Parameter(mg.EmbeddedDocument):
@@ -28,12 +31,14 @@ class Parameter(mg.EmbeddedDocument):
     value = fields.DynamicField()
     
         
+    def __str__(self):
+        return self.name
     def __unicode__(self):
         return self.name
         
-        
-        
+                
 INPUT_METHODS = ('constant', 'user_input', 'io_input')
+
 class Input(Parameter):
     input_method = fields.StringField(choices=INPUT_METHODS, 
                                       default="user_input")
@@ -42,30 +47,26 @@ class Input(Parameter):
     fr = fields.ReferenceField('IObject')
     fr_output = fields.EmbeddedDocumentField('Output')
     
+    
 
 OUTPUT_TYPES = ('display', 'hidden')
     
 class Output(Parameter):
     
     output_type = fields.StringField(choices=OUTPUT_TYPES, 
-                                      default="display")
-    
+                                      default="display")    
     is_connected = fields.BooleanField(default = False)                                  
     to = fields.ReferenceField('IObject')
     to_input = fields.EmbeddedDocumentField('Input')
     
     
-
-
 class RunInfo(object):
     pass    
 
-class IObject(mg.Document):
-
+class IObject(TraitDocument):
     
     meta = {'allow_inheritance': True}
-    
-    
+       
     name = fields.StringField(required = True, max_length=256)
     inputs = fields.ListField(mg.EmbeddedDocumentField(Input))
     outputs = fields.ListField(mg.EmbeddedDocumentField(Output))
@@ -77,10 +78,6 @@ class IObject(mg.Document):
     @property    
     def inputdict(self):
         return self._paramdict(self.inputs)
-    
-    @property
-    def displaydict(self):
-        return self._paramdict(self.displays)
     
     @property    
     def outputdict(self):
@@ -103,8 +100,7 @@ class IObject(mg.Document):
     def antecessors(self):
         for a in self._antecessors(set()):
             yield a
-            
-    
+                
     def _antecessors(self, existing):
         p_set = set(self.parents)
         
@@ -116,22 +112,12 @@ class IObject(mg.Document):
         for a in new_antecessors:
             #yield a
             for na in a._antecessors(existing):
-                yield na
-        
+                yield na        
     
     @property
     def graph(self):
         #TODO: Cache?
         return self.build_graph()
-    
-#==============================================================================
-#     @property
-#     def antecessors_iter(self):
-#         for p in self.parents:
-#             for a in p.antecessors_iter:
-#                 yield a
-#             yield p
-#==============================================================================
         
     @property
     def parents(self):
@@ -148,8 +134,7 @@ class IObject(mg.Document):
             )
             fr._rec_graph(G, fr.links)
             
-            
-        
+                    
     def build_graph(self, ):
         G = networkx.MultiDiGraph()
         G.add_node(self)
@@ -180,6 +165,7 @@ class IObject(mg.Document):
             outp.to = to
             inp.fr_output = outp
             outp.to_input = inp
+            
                 
     def bind_to_output(self, fr, inputs , outputs):
         if self in fr.antecessors:
@@ -193,23 +179,17 @@ class IObject(mg.Document):
             inp.input_method = 'io_input'
             inp.fr= fr
             inp.fr_output = outp
-            
-        
-        
+                
     
     def run(self):
         params = {}
         runinfo = RunInfo()
         
-
         for p in self.parents:
             if (not p.executed or 
                 any(not ant.executed for ant in p.antecessors)):
                 p.run()
-           
-                
-            
-        
+
         for inp in self.inputs:
             
             if inp.input_method == 'io_input':
@@ -236,14 +216,12 @@ class IObject(mg.Document):
             
         return results
     
+    def __str__(self):
+        return self.name
         
     def __unicode__(self):
         return self.name
         
-
-    
-    
-
 default_spec = ()
 
 def add_child(container, child):
@@ -282,7 +260,9 @@ class IPIObject(IObject):
             io._add_form(control_container, css_classes)
         
         
-        display(control_container)        
+                
+        
+        display(control_container)
         self._add_classes(css_classes)
         return control_container
     
@@ -318,8 +298,6 @@ class IPIObject(IObject):
         add_child(iocont, button)
         
         
-        
-
 class IOSimple(IPIObject):
     
     def execute(self, **kwargs):
@@ -329,17 +307,7 @@ class IOSimple(IPIObject):
             results[out.name] = kwargs[ next(keys) ]
         
         return results
-            
-            
-        
 
-    
-
-    
-    
-    
-
-    
     
 class IOGraph():
     pass
