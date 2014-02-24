@@ -3,6 +3,11 @@
 -Command processors.
 -Experiment results on db.
 -Report tools.
--Implement "experiment forms.
+-Display Widgets.
+-Implement "experiment forms".
 -Widget types.
--Callback attribute does not raise error.
+-Represent commands as iobjects.
+-DBwidget.
+-Decide how to represent graphs properly.
+-Fix setuptools (use distutils).
+-Graph plots?

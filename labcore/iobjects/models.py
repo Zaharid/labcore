@@ -232,9 +232,7 @@ def add_child(container, child):
     
 class IPIObject(IObject):
     
-    #@staticmethod
     def _executed_changed(self):
-        print("IMEXEC")
         if self.executed:
             self.widget.add_class('executed')
         else:
@@ -242,7 +240,6 @@ class IPIObject(IObject):
         
     def run(self):
         super(IPIObject,self).run()
-        print("%srun!"%self.name)
         for out in self.display_outputs:
             out.widget.value = "<strong>%s</strong>: %r" %(out.name, out.value)
         
@@ -258,8 +255,6 @@ class IPIObject(IObject):
        
         css_classes = {control_container: 'control-container'}
         
-        
-        
         add_child(control_container, 
                   widgets.LatexWidget(value = "IObject Widget"))
                   
@@ -273,9 +268,7 @@ class IPIObject(IObject):
         self._add_classes(css_classes)
         self.control_container = control_container
         return control_container
-    
         
-    
     def _add_form(self, control_container, css_classes):
         iocont =  widgets.ContainerWidget()
         css_classes[iocont] = ('iobject-container')
@@ -290,7 +283,6 @@ class IPIObject(IObject):
             
             def set_exec(w):
                 self.executed = False
-                print(self.executed)
             w.on_trait_change(set_exec, name = 'value') 
             add_child(iocont,w)
         
