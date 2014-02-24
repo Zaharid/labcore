@@ -226,6 +226,45 @@ class IObject(TraitDocument):
         
 default_spec = ()
 
+
+class Link(mg.EmbeddedDocument):   
+    to_output = fields.EmbeddedDocumentField(Output)
+    fr = fields.ReferenceField('IONode')
+    fr_input = fields.EmbeddedDocumentField(Input)
+
+class IONode(mg.EmbeddedDocument):
+    iobject = fields.ReferenceField(IObject)
+    links = fields.ListField(fields.EmbeddedDocumentField(Link))
+    
+    def _antecessors(self, existing):
+        p_set = set(self.parents)
+        
+        new_antecessors = p_set-existing
+        existing |= p_set
+
+        for a in new_antecessors:
+            yield a
+        for a in new_antecessors:
+            #yield a
+            for na in a._antecessors(existing):
+                yield na        
+ 
+    
+    @property
+    def parents(self):
+        return (link.fr for link in self.links)
+    
+
+class IOGraph(mg.Document):
+    
+    name = fields.StringField()
+    nodes = fields.ListField(fields.ReferenceField(IONode))
+    
+    def bind(self, fr, inp, to, out):
+        to.links += [Link(to_output = out, fr = fr, fr_input = inp)]
+    
+
+
 def add_child(container, child):
     container.children = container.children + [child]
 
