@@ -35,9 +35,7 @@ def set_field(field_class, key):
 class Meta(MongoMeta, MetaHasTraits):
     
 
-  
     def __new__(mcls, name, bases, classdict):
-        
         traits_class = MetaHasTraits.__new__(mcls, name, bases, classdict)
         _dbtraits = []
         field_dict={}        
@@ -63,32 +61,9 @@ class Meta(MongoMeta, MetaHasTraits):
         metadic['allow_inheritance'] = True
         classdict['meta'] = metadic
         mongo_class = MongoMeta.__new__(mcls, name, bases, classdict)
-        #print mongo_class.__dict__
         
         d = dict(traits_class.__dict__)
         d.update(dict(mongo_class.__dict__))
-        
-        
-        
-        #Init has to be set here because it isn't easy to have a py3-compatible
-        #class with metaclass.
-        def __init__(self, **kwargs):
-            mg.Document.__init__(self, **kwargs)
-            HasTraits.__init__(self, **kwargs)
-            
-            def change_field(name, old, new):
-                setattr(self, name+'_db',new)
-                
-            for (key, dbkey) in self.__class__._dbtraits:
-                val = getattr(self, dbkey)
-                if val is not None:
-                    setattr(self, key, val)
-                if key in kwargs:
-                    setattr(self, dbkey, kwargs[key])
-                self.on_trait_change(change_field, key)
-        
-        
-        d['__init__'] = __init__
         
         d['_dbtraits'] = _dbtraits 
         return type.__new__(mcls, name, bases, d)
@@ -97,7 +72,24 @@ class Meta(MongoMeta, MetaHasTraits):
 
 #We can extend this class
 TraitDocument = Meta('TraitsDocument', (HasTraits, mg.Document),{})
-   
+
+#Init has to be set here because it isn't easy to have a py3-compatible
+#class with metaclass.     
+def td__init__(self, **kwargs):
+    mg.Document.__init__(self, **kwargs)
+    HasTraits.__init__(self, **kwargs)
+    
+    def change_field(name, old, new):
+        setattr(self, name+'_db',new)
+        
+    for (key, dbkey) in self.__class__._dbtraits:
+        val = getattr(self, dbkey)
+        if val is not None:
+            setattr(self, key, val)
+        if key in kwargs:
+            setattr(self, dbkey, kwargs[key])
+        self.on_trait_change(change_field, key)
+TraitDocument.__init__ = td__init__
             
 
 
@@ -106,6 +98,10 @@ class Test(TraitDocument):
     meta = {'collection': 'test',
             'index_cls': False
     }
+    
+    def __init__(self):
+        print ("tdaexis")
+        super(Test,self).__init__()
     
     f = traitlets.Bool(db=True)
     g = traitlets.Any(db=fields.DynamicField)

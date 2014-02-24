@@ -4,8 +4,8 @@ Created on Tue Feb 11 18:42:58 2014
 
 @author: zah
 """
-from __future__ import absolute_import
-from . import models
+#from __future__ import absolute_import
+import models
 
 ios = []
 for i in range(5):

@@ -4,7 +4,7 @@ Created on Tue Feb 11 17:18:00 2014
 
 @author: zah
 """
-from __future__ import absolute_import
+#from __future__ import absolute_import
 
 import itertools
 
@@ -13,10 +13,11 @@ import mongoengine as mg
 import networkx
 from mongoengine import fields
 
+from IPython.utils.traitlets import Bool
 from IPython.html import widgets
 from IPython.display import display
 
-from . mongotraits import TraitDocument
+from mongotraits import TraitDocument
 
 mg.connect('labcore')
 
@@ -70,6 +71,10 @@ class IObject(TraitDocument):
     name = fields.StringField(required = True, max_length=256)
     inputs = fields.ListField(mg.EmbeddedDocumentField(Input))
     outputs = fields.ListField(mg.EmbeddedDocumentField(Output))
+    
+    address = fields.StringField()
+    executed = Bool(default_value = False, db=True)
+    log_output = fields.BooleanField(default = False)
     #dispays = fields.ListField(mg.EmbeddedDocumentField(Parameter))
     
     def _paramdict(self, paramlist):
@@ -144,10 +149,7 @@ class IObject(TraitDocument):
     def draw_graph(self):
         G = self.build_graph()
         networkx.draw(G)
-        
-    address = fields.StringField()
-    executed = fields.BooleanField(default = False)
-    log_output = fields.BooleanField(default = False)
+    
     
     
     def bind_to_input(self, to, outputs, inputs):
@@ -230,7 +232,14 @@ def add_child(container, child):
     
 class IPIObject(IObject):
     
-    
+    #@staticmethod
+    def _executed_changed(self):
+        print("IMEXEC")
+        if self.executed:
+            self.widget.add_class('executed')
+        else:
+            self.widget.remove_class('executed')
+        
     def run(self):
         super(IPIObject,self).run()
         print("%srun!"%self.name)
@@ -258,12 +267,11 @@ class IPIObject(IObject):
         for io in itertools.chain([self],self.antecessors):
         
             io._add_form(control_container, css_classes)
-        
-        
-                
+     
         
         display(control_container)
         self._add_classes(css_classes)
+        self.control_container = control_container
         return control_container
     
         
@@ -273,6 +281,7 @@ class IPIObject(IObject):
         css_classes[iocont] = ('iobject-container')
         add_child(iocont, widgets.LatexWidget(value = self.name))
         add_child(control_container, iocont)
+        self.widget = iocont
         for inp in self.free_inputs:
     
             w = widgets.TextWidget(description = inp.name, value = inp.value,
