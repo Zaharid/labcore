@@ -12,18 +12,29 @@ import itertools
 import mongoengine as mg
 import networkx
 from mongoengine import fields
+from bson import objectid
 
 from IPython.utils.traitlets import Bool
 from IPython.html import widgets
 from IPython.display import display
 
-from mongotraits import TraitDocument
+from mongotraits import (TraitDocument, Document, EmbeddedDocument, 
+    EmbeddedReferenceField)
+
+
 
 mg.connect('labcore')
 
 
-class Parameter(mg.EmbeddedDocument):
+class Parameter(EmbeddedDocument):
+    def __init__(self, **kwargs):
+        super(EmbeddedDocument, self).__init__(**kwargs)
+        if self._id is None:
+           self._id = objectid.ObjectId()
+           
     meta = {'allow_inheritance': True}
+    
+    _id = fields.ObjectIdField(primary_key = True)
     
     name = fields.StringField(required = True, max_length=256, unique=True)
     param_type = fields.StringField(default="STR")
@@ -222,20 +233,34 @@ class IObject(TraitDocument):
         return self.name
         
     def __unicode__(self):
+        if not self.name:
+            raise AttributeError("Name not provided")
         return self.name
         
 default_spec = ()
 
 
-class Link(mg.EmbeddedDocument):   
-    to_output = fields.EmbeddedDocumentField(Output)
-    fr = fields.ReferenceField('IONode')
-    fr_input = fields.EmbeddedDocumentField(Input)
+class Link(EmbeddedDocument):
+    uid = fields.ObjectIdField()
+    
+    to_output = EmbeddedReferenceField(IObject, 'outputs')
+    fr = EmbeddedReferenceField('IOGraph', 'nodes')
+    fr_input = EmbeddedReferenceField(IObject, 'inputs')
+    
 
 class IONode(mg.EmbeddedDocument):
-    iobject = fields.ReferenceField(IObject)
+    iobject = fields.ReferenceField(IObject, required = True)
     links = fields.ListField(fields.EmbeddedDocumentField(Link))
     
+    @property
+    def parents(self):
+        return (link.fr for link in self.links)
+    
+    @property
+    def ancestors(self):
+        for a in self._antecessors(set()):
+            yield a
+                
     def _antecessors(self, existing):
         p_set = set(self.parents)
         
@@ -245,20 +270,14 @@ class IONode(mg.EmbeddedDocument):
         for a in new_antecessors:
             yield a
         for a in new_antecessors:
-            #yield a
             for na in a._antecessors(existing):
                 yield na        
- 
-    
-    @property
-    def parents(self):
-        return (link.fr for link in self.links)
-    
 
+    
 class IOGraph(mg.Document):
     
     name = fields.StringField()
-    nodes = fields.ListField(fields.ReferenceField(IONode))
+    nodes = fields.ListField(fields.EmbeddedDocumentField(IONode))
     
     def bind(self, fr, inp, to, out):
         to.links += [Link(to_output = out, fr = fr, fr_input = inp)]
@@ -349,8 +368,5 @@ class IOSimple(IPIObject):
         return results
 
     
-class IOGraph():
-    pass
-
     
     
