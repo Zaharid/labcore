@@ -243,9 +243,9 @@ default_spec = ()
 class Link(EmbeddedDocument):
     uid = fields.ObjectIdField()
     
-    to_output = EmbeddedReferenceField(IObject, 'outputs')
-    fr = EmbeddedReferenceField('IOGraph', 'nodes')
-    fr_input = EmbeddedReferenceField(IObject, 'inputs')
+    to_output = EmbeddedReferenceField(IObject, 'outputs', Output)
+    fr = EmbeddedReferenceField('IOGraph', 'nodes', Output)
+    fr_input = EmbeddedReferenceField(IObject, 'inputs', Output)
     
 
 class IONode(mg.EmbeddedDocument):

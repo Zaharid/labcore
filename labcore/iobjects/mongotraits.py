@@ -72,35 +72,73 @@ class Meta(MongoMeta, MetaHasTraits):
         
 
 class EmbeddedReferenceField(object):
-    def __init__(self, document, field, id_name = "_id", **field_options):
+    """Field that allows reference to embedded objects.
+     
+    Parameters
+    ----------
+    
+    document : 
+        The document in whose collection to search fot the regerence.
+    
+    field :
+        The field of `document` that stores the references.
+    
+    obj_type :
+        The type of the EmbeddedDocument.
+    
+    id_name :
+        The namos of the field that stores the id reference. `obj_type` must
+        implement this field.
+    """
+    
+    def __init__(self, document, field, obj_type = None, id_name = "_id", 
+                 **field_options):
+       
         self.document = document
         self.field = field
+        if obj_type is None:
+            #Suppose it's a list with embedded reference.
+            obj_type = document._fields[field].field.document_type
+        self.obj_type = obj_type
         self.id_name = id_name
         self.field_options = field_options
         
-def makeprop(key,value):
-    def getter(self):
-        query_dict = {
-            "%s__%s"%(value.field,value.id_name): getattr(self, "_"+key)
-        }
-        print query_dict
-        print value.document
-        return value.document.objects(**query_dict)
-                
-    def setter(self, obj):
-        field_key = "_"+key
-        uid = getattr(obj, value.id_name)
-        setattr(self,field_key, uid)
-    return property(getter, setter)
+
 
 class MetaWithEmbedded(type):
+    """Metaclass who allows classes that implement it to use the 
+    `EmbeddedReferenceField`. To be used with the mongoengine classes it has to
+    go trough `meta_extends` to inherit from the appropiate metaclass."""
+    @staticmethod
+    def makeprop(key,value):
+        """Returns the property for a field name (key) and the 
+        corresponding `EmbeddedReferenceField` object (value) to be added to
+        the appropiate entry."""
+        idkey = "_"+key
+        def getter(self):
+            
+            c = value.document._get_collection()
+            f = value.field
+            idf = value.id_name
+            idval = getattr(self, idkey)
+            mgobj = c.find_one({'%s.%s'%(f,idf):idval},
+                               {'%s.$'%f:1,"_id":0})['%s'%f][0]
+
+           
+            return value.obj_type(**mgobj)
+                    
+        def setter(self, obj):
+            uid = getattr(obj, value.id_name)
+            setattr(self,idkey, uid)
+        return property(getter, setter)
+        
     def __new__(mcls, cls_name, bases, classdict):
         for key,value in classdict.items():
             if isinstance(value, EmbeddedReferenceField):
                 field = fields.ObjectIdField(**value.field_options)
                 field_key = '_'+key
                 classdict[field_key] = field  
-                classdict[key] =makeprop(key,value)
+                classdict[key] =mcls.makeprop(key,value)
                 classdict['_idfield'] = value.id_name
         metadic = classdict.get('meta',{})
         if not 'collection' in metadic:
@@ -111,10 +149,14 @@ class MetaWithEmbedded(type):
         #Dont know how to call super here...
         superclass = mcls.__mro__[1]
         return superclass.__new__(mcls, cls_name, bases, classdict)
+        
+        
+        
 
 def meta_extends(name, meta, base):
     metaname = base.__name__ + meta.__name__
-    base_meta = type.__new__(type, metaname, (base.__metaclass__,), dict(meta.__dict__))
+    base_meta = type.__new__(type, metaname, (base.__metaclass__,),
+                             dict(meta.__dict__))
     return base_meta(name, (base,), {})
     
 
@@ -125,11 +167,9 @@ EmbeddedDocument = meta_extends('EmbeddedDocument',MetaWithEmbedded, mg.Embedded
         
                  
                 
-#We can extend this class
-TraitDocument = Meta('TraitsDocument', (HasTraits, mg.Document),{})
-#ZtDocument = MetaWithEmbedded('ZDocument', (HasTraits, mg.Document),{})
 
-#Init has to be set here because it isn't easy to have a py3-compatible
+TraitDocument = Meta('TraitsDocument', (HasTraits, mg.Document),{})
+
 #class with metaclass.     
 def td__init__(self, **kwargs):
     mg.Document.__init__(self, **kwargs)
