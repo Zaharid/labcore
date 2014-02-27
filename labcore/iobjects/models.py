@@ -18,14 +18,14 @@ from IPython.utils.traitlets import Bool
 from IPython.html import widgets
 from IPython.display import display
 
-from mongotraits import (TraitDocument, Document, EmbeddedDocument, 
+from mongotraits import (Document, EmbeddedDocument, 
     EmbeddedReferenceField)
 
 
 
 mg.connect('labcore')
 
-
+print EmbeddedDocument
 class Parameter(EmbeddedDocument):
     def __init__(self, **kwargs):
         super(EmbeddedDocument, self).__init__(**kwargs)
@@ -75,7 +75,7 @@ class Output(Parameter):
 class RunInfo(object):
     pass    
 
-class IObject(TraitDocument):
+class IObject(Document):
     
     meta = {'allow_inheritance': True}
        
@@ -287,7 +287,7 @@ class IONode(EmbeddedDocument):
         return self.iobject.name
 
     
-class IOGraph(mg.Document):
+class IOGraph(Document):
     
     name = fields.StringField()
     nodes = fields.ListField(fields.EmbeddedDocumentField(IONode))
