@@ -280,6 +280,7 @@ class IONode(EmbeddedDocument):
         for a in new_antecessors:
             for na in a._antecessors(existing):
                 yield na   
+                
     def __unicode__(self):
         return self.iobject.name
     def __str__(self):

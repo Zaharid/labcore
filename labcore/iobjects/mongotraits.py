@@ -4,7 +4,7 @@ Created on Fri Feb 21 16:10:18 2014
 
 @author: zah
 """
-
+import weakref
 
 from IPython.utils.py3compat import iteritems, string_types
 
@@ -15,7 +15,6 @@ from IPython.utils import traitlets
 from IPython.utils.traitlets import TraitType, HasTraits, MetaHasTraits
 
 from mongoengine.base.metaclasses import TopLevelDocumentMetaclass as MongoMeta
-from bson import objectid
 
 RECURSIVE_REFERENCE_CONSTANT = 'self'
 
@@ -34,6 +33,11 @@ def set_field(field_class, key):
     
     
 class TraitsDBMeta(MongoMeta, MetaHasTraits):
+    """
+    Allows subclassing Mongoengine classes and IPython HasTraits classes.
+    Alsom the Traits with db=True or db = Field metadata field will be
+    syncronized with a Mongoengine field called traitname_db.
+    """
     def __new__(mcls, name, bases, classdict):
         traits_class = MetaHasTraits.__new__(mcls, name, bases, classdict)
         _dbtraits = []
@@ -70,6 +74,7 @@ class TraitsDBMeta(MongoMeta, MetaHasTraits):
         d['_dbtraits'] = _dbtraits 
         return type.__new__(mcls, name, bases, d)
         
+
 
 class EmbeddedReferenceField(object):
     """Field that allows reference to embedded objects.
@@ -187,8 +192,11 @@ EmbeddedDocument = meta_extends('EmbeddedDocument',MetaWithEmbedded,
 
 TraitDocument = TraitsDBMeta('TraitsDocument', (HasTraits, mg.Document),{})
 
-#class with metaclass.     
+    
 def td__init__(self, **kwargs):
+    """
+    Initialize the trait_db fields to track the traits.
+    """
     mg.Document.__init__(self, **kwargs)
     HasTraits.__init__(self, **kwargs)
     
@@ -204,8 +212,23 @@ def td__init__(self, **kwargs):
         self.on_trait_change(change_field, key)
 TraitDocument.__init__ = td__init__
             
-
-
+class SingleId(type):
+    id_prop = 'id'
+    def __init__(mcls, class_name, bases, class_dict):
+        mcls._iddict = weakref.WeakValueDictionary()
+        super(SingleId,mcls).__init__(class_name, bases, class_dict)
+    def __call__(self, *args, **kwargs):
+        ins = super(SingleId,self).__call__(*args, **kwargs)
+        uid = getattr(ins, ins.__class__.id_prop, None)
+        if uid is not None:
+            if uid in ins.__class__._iddict:
+                print ins
+                ins = ins.__class__._iddict[uid]
+                print ins
+            else:
+                ins.__class__._iddict[uid] = ins
+                print ins.__class__._iddict
+        return ins
 
 class Test(TraitDocument):
     meta = {'collection': 'test',
@@ -224,4 +247,14 @@ class Test(TraitDocument):
         d = {'f':self.f,'g':self.g, 'h':self.h}
         return str(d)
 
-
+class A():
+    import itertools
+    ids = itertools.cycle((1,2))
+    def __init__(self):
+        self.id = next(A.ids)
+        print self.id
+        super(A,self).__init__()
+A = SingleId('A', (),A.__dict__)
+class B():
+    pass
+B=SingleId('B', (),B.__dict__)
