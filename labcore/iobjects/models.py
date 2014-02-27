@@ -25,7 +25,6 @@ from mongotraits import (Document, EmbeddedDocument,
 
 mg.connect('labcore')
 
-print EmbeddedDocument
 class Parameter(EmbeddedDocument):
     def __init__(self, **kwargs):
         super(EmbeddedDocument, self).__init__(**kwargs)

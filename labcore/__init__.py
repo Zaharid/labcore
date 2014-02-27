@@ -1,1 +1,1 @@
-import django_shell #analysis:ignore
+#import django_shell #analysis:ignore
