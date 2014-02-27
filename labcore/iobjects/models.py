@@ -241,14 +241,22 @@ default_spec = ()
 
 
 class Link(EmbeddedDocument):
-    uid = fields.ObjectIdField()
+    _id = fields.ObjectIdField()
     
     to_output = EmbeddedReferenceField(IObject, 'outputs', Output)
-    fr = EmbeddedReferenceField('IOGraph', 'nodes', Output)
-    fr_input = EmbeddedReferenceField(IObject, 'inputs', Output)
+    fr = EmbeddedReferenceField('IOGraph', 'nodes', 'IONode')
+    fr_input = EmbeddedReferenceField(IObject, 'inputs', Input)
     
 
-class IONode(mg.EmbeddedDocument):
+class IONode(EmbeddedDocument):
+    def __init__(self, *args, **kwargs):
+        super(IONode, self).__init__(**kwargs)
+        if len(args) == 1:
+            self.iobject = args[0]
+        if self._id is None:
+           self._id = objectid.ObjectId()
+            
+    _id = fields.ObjectIdField()
     iobject = fields.ReferenceField(IObject, required = True)
     links = fields.ListField(fields.EmbeddedDocumentField(Link))
     
@@ -271,7 +279,11 @@ class IONode(mg.EmbeddedDocument):
             yield a
         for a in new_antecessors:
             for na in a._antecessors(existing):
-                yield na        
+                yield na   
+    def __unicode__(self):
+        return self.iobject.name
+    def __str__(self):
+        return self.iobject.name
 
     
 class IOGraph(mg.Document):

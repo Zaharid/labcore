@@ -6,10 +6,10 @@ Created on Fri Feb 21 16:10:18 2014
 """
 
 
-from IPython.utils.py3compat import iteritems
+from IPython.utils.py3compat import iteritems, string_types
 
 import mongoengine as mg
-from mongoengine.base import BaseField
+from mongoengine.base import BaseField, get_document
 from mongoengine import fields
 from IPython.utils import traitlets
 from IPython.utils.traitlets import TraitType, HasTraits, MetaHasTraits
@@ -17,7 +17,7 @@ from IPython.utils.traitlets import TraitType, HasTraits, MetaHasTraits
 from mongoengine.base.metaclasses import TopLevelDocumentMetaclass as MongoMeta
 from bson import objectid
 
-
+RECURSIVE_REFERENCE_CONSTANT = 'self'
 
 field_map = {
     traitlets.Bool: fields.BooleanField,
@@ -33,7 +33,7 @@ def set_field(field_class, key):
     )
     
     
-class Meta(MongoMeta, MetaHasTraits):
+class TraitsDBMeta(MongoMeta, MetaHasTraits):
     def __new__(mcls, name, bases, classdict):
         traits_class = MetaHasTraits.__new__(mcls, name, bases, classdict)
         _dbtraits = []
@@ -91,17 +91,35 @@ class EmbeddedReferenceField(object):
         implement this field.
     """
     
-    def __init__(self, document, field, obj_type = None, id_name = "_id", 
+    def __init__(self, document_type, field, obj_type = None, id_name = "_id", 
                  **field_options):
        
-        self.document = document
+        self.document_type_obj = document_type
         self.field = field
         if obj_type is None:
             #Suppose it's a list with embedded reference.
-            obj_type = document._fields[field].field.document_type
-        self.obj_type = obj_type
+            obj_type = self.document._fields[field].field.document_type
+        self.obj_type_obj = obj_type
         self.id_name = id_name
         self.field_options = field_options
+        
+    @property
+    def document_type(self):
+        return self.resolve_model(self.document_type_obj)
+    
+    @property
+    def obj_type(self):
+        return self.resolve_model(self.obj_type_obj)
+    
+    @staticmethod
+    def resolve_model(obj):
+        if isinstance(obj, string_types):
+            if obj == RECURSIVE_REFERENCE_CONSTANT:
+                #self.document_type_obj = self.owner_document
+                raise NotImplementedError("Can't refer to self.")
+            else:
+                obj = get_document(obj)
+        return obj
         
 
 
@@ -116,15 +134,13 @@ class MetaWithEmbedded(type):
         the appropiate entry."""
         idkey = "_"+key
         def getter(self):
-            
-            c = value.document._get_collection()
+            c = value.document_type._get_collection()
             f = value.field
             idf = value.id_name
             idval = getattr(self, idkey)
             mgobj = c.find_one({'%s.%s'%(f,idf):idval},
                                {'%s.$'%f:1,"_id":0})['%s'%f][0]
-
-           
+                               
             return value.obj_type(**mgobj)
                     
         def setter(self, obj):
@@ -137,7 +153,7 @@ class MetaWithEmbedded(type):
             if isinstance(value, EmbeddedReferenceField):
                 field = fields.ObjectIdField(**value.field_options)
                 field_key = '_'+key
-                classdict[field_key] = field  
+                classdict[field_key] = field
                 classdict[key] =mcls.makeprop(key,value)
                 classdict['_idfield'] = value.id_name
         metadic = classdict.get('meta',{})
@@ -163,12 +179,13 @@ def meta_extends(name, meta, base):
 
 Document = meta_extends('Document', MetaWithEmbedded, mg.Document)
 
-EmbeddedDocument = meta_extends('EmbeddedDocument',MetaWithEmbedded, mg.EmbeddedDocument)
+EmbeddedDocument = meta_extends('EmbeddedDocument',MetaWithEmbedded, 
+                                mg.EmbeddedDocument)
         
                  
                 
 
-TraitDocument = Meta('TraitsDocument', (HasTraits, mg.Document),{})
+TraitDocument = TraitsDBMeta('TraitsDocument', (HasTraits, mg.Document),{})
 
 #class with metaclass.     
 def td__init__(self, **kwargs):

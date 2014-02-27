@@ -13,10 +13,13 @@ io = models.IObject(name = 'io')
 io.outputs += [o1,o2]
 io.save()
 g = models.IOGraph()
-g.nodes += [io]
+g.nodes += [models.IONode(io)]
+g.save()
 l = models.Link()
 l.to_output = o1
+l.fr = g.nodes[0]
 print l.to_output
+print l.fr
 
 class Test(mg.Document):
     a = mg.IntField()
