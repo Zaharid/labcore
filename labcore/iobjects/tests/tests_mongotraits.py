@@ -38,5 +38,10 @@ class Test_base(MongoTest):
         doc.f = True
         self.assertEqual(ns.x, 'OK')
         
+    def test_init(self):
+        embdoc = EmbDoc()
+        p = Partner(ref = embdoc)
+        self.assertTrue(p.ref is embdoc)
+        
 if __name__ == '__main__':
     nose.main(exit=False)

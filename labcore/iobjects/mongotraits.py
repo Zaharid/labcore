@@ -178,13 +178,16 @@ class MetaWithEmbedded(type):
     def __new__(mcls, cls_name, bases, classdict):
         #Cant change classdoct size while iterationg
         d = {}
+        embedded_fields = []
         for key,value in classdict.items():
             if isinstance(value, EmbeddedReferenceField):
                 field = fields.ObjectIdField(**value.field_options)
                 field_key = mcls._dbkey(key)
                 d[field_key] = field
+                embedded_fields += [key]
                 d[key] =mcls.makeprop(key,value)
         classdict.update(d)
+        classdict['embedded_fields'] = embedded_fields
         return super(MetaWithEmbedded, mcls).__new__(mcls, cls_name, bases, classdict)
 
 
@@ -238,6 +241,9 @@ def _td__init__(self,*args,**kwargs):
     Initialize the trait_db fields to track the traits.
     """
     super(self.__class__._superguard,self).__init__(*args, **kwargs)
+    for key in kwargs:
+        if key in self.__class__.embedded_fields:
+            setattr(self, key, kwargs[key])
 
 
     def change_field(name, old, new):
@@ -251,8 +257,13 @@ def _td__init__(self,*args,**kwargs):
             setattr(self, dbkey, kwargs[key])
         self.on_trait_change(change_field, key)
 
+#Mongoengine Embedded documents aren't hashable for some reason
+def td__hash__(self):
+    return id(self)
+
 _d = {
     '__init__': _td__init__,
+    '__hash__': td__hash__,
     'meta':{'abstract':True}
 }
 #Turns out _d is modiffied by these lines.

@@ -9,5 +9,4 @@
 -Represent commands as iobjects.
 -DBwidget.
 -Decide how to represent graphs properly.
--Fix setuptools (use distutils).
 -Graph plots?

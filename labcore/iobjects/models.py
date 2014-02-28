@@ -14,6 +14,7 @@ import networkx
 from mongoengine import fields
 from bson import objectid
 
+from IPython.utils.py3compat import string_types
 from IPython.utils.traitlets import Bool
 from IPython.html import widgets
 from IPython.display import display
@@ -26,12 +27,8 @@ from mongotraits import (Document, EmbeddedDocument,
 mg.connect('labcore')
 
 class Parameter(EmbeddedDocument):
-    def __init__(self, **kwargs):
-        super(EmbeddedDocument, self).__init__(**kwargs)
-        if self._id is None:
-           self._id = objectid.ObjectId()
-
-    meta = {'allow_inheritance': True, 'abstract':True}
+    
+    meta = {'abstract':True}
 
     id = fields.ObjectIdField()
 
@@ -240,22 +237,24 @@ default_spec = ()
 
 
 class Link(EmbeddedDocument):
-    _id = fields.ObjectIdField()
+    id = fields.ObjectIdField()
 
     to_output = EmbeddedReferenceField(IObject, 'outputs', Output)
     fr = EmbeddedReferenceField('IOGraph', 'nodes', 'IONode')
     fr_input = EmbeddedReferenceField(IObject, 'inputs', Input)
+    
 
 
 class IONode(EmbeddedDocument):
     def __init__(self, *args, **kwargs):
-        super(IONode, self).__init__(**kwargs)
-        if len(args) == 1:
-            self.iobject = args[0]
-        if self._id is None:
-           self._id = objectid.ObjectId()
+        if args and isinstance(args[0], IObject):
+            kwargs['iobject'] = args[0]
+            args = args[1:]
+           
+        super(IONode, self).__init__(*args,**kwargs)
+        
 
-    _id = fields.ObjectIdField()
+    id_ = fields.ObjectIdField()
     iobject = fields.ReferenceField(IObject, required = True)
     links = fields.ListField(fields.EmbeddedDocumentField(Link))
 
@@ -279,6 +278,12 @@ class IONode(EmbeddedDocument):
         for a in new_antecessors:
             for na in a._antecessors(existing):
                 yield na
+    
+    def __getattribute__(self, attr):
+        try:
+            return object.__getattribute__(self, attr)
+        except AttributeError:
+            return getattr(self.iobject, attr)
 
     def __unicode__(self):
         return self.iobject.name
@@ -290,8 +295,21 @@ class IOGraph(Document):
 
     name = fields.StringField()
     nodes = fields.ListField(fields.EmbeddedDocumentField(IONode))
+    
+    def build_graph(self):
+        G = networkx.MultiDiGraph()
+        G.add_nodes_from(self.nodes)
+        for node in self.nodes:
+            G.add_edges_from((link.fr, node, {'link':link}) for link in node.links)
+        return G
 
     def bind(self, fr, inp, to, out):
+        if not fr in self.nodes or not to in self.nodes:
+            raise ValueError('Nodes must be in graph nodes before linking.')
+        if isinstance(inp, string_types):
+            inp = to.inputdict[inp]
+        if isinstance(out, string_types):
+            out = to.outputdict[out]
         to.links += [Link(to_output = out, fr = fr, fr_input = inp)]
 
 
