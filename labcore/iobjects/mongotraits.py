@@ -9,8 +9,7 @@ import weakref
 from IPython.utils.py3compat import iteritems, string_types
 
 import mongoengine as mg
-import mongoengine.base
-from mongoengine.base import BaseField, get_document, _document_registry
+from mongoengine.base import BaseField, get_document
 from mongoengine import fields
 from IPython.utils import traitlets
 from IPython.utils.traitlets import TraitType, HasTraits, MetaHasTraits
@@ -36,23 +35,17 @@ def set_field(field_class, key):
     return field_class(
         db_field = key
     )
-    
-    
-class TraitsDBMeta(MetaHasTraits):
+
+
+class AbstractTraitsDBMeta(type):
     """
     Allows subclassing Mongoengine classes and IPython HasTraits classes.
     Alsom the Traits with db=True or db = Field metadata field will be
-    syncronized with a Mongoengine field called traitname_db. In order to 
-    produce a __new__ class, the mongometa variable must be set appropiately.
+    syncronized with a Mongoengine field called traitname_db.
     """
-    mongometa = None
     def __new__(mcls, name, bases, classdict):
-        if mcls.mongometa is None:
-            raise(TypeError("You must specify mongometa"))
-            
-        
         _dbtraits = []
-        field_dict={}        
+        field_dict={}
         for key, value in iteritems(classdict):
             if isinstance(value, TraitType):
                 field_spec = value._metadata.get('db', False)
@@ -62,65 +55,61 @@ class TraitsDBMeta(MetaHasTraits):
                     elif isinstance(field_spec, type):
                         field = set_field(field_spec, key)
                     else:
-                        field = set_field(field_map.get(value.__class__, 
+                        field = set_field(field_map.get(value.__class__,
                                                 fields.DynamicField), key)
-                
+
                 dbkey = key+"_db"
                 field_dict[dbkey] = field
-                    
+
                 _dbtraits += [(key, dbkey)]
-        
+
         classdict.update(field_dict)
-        mongo_class = mcls.mongometa.__new__(mcls, name, bases, classdict)
-        
-        traits_class = MetaHasTraits.__new__(mcls, name, bases, classdict)
-        d = dict(traits_class.__dict__)
-        d.update(dict(mongo_class.__dict__)) 
-        d['_dbtraits'] = _dbtraits 
-        return type.__new__(mcls, name, bases, d)
-        
+        classdict['_dbtraits'] = _dbtraits
+        return super(AbstractTraitsDBMeta,mcls).__new__(mcls, name,
+                    bases, classdict)
+
 
 
 class EmbeddedReferenceField(object):
     """Field that allows reference to embedded objects.
-     
+
     Parameters
     ----------
-    
-    document : 
+
+    document :
         The document in whose collection to search fot the regerence.
-    
+
     field :
         The field of `document` that stores the references.
-    
+
     obj_type :
         The type of the EmbeddedDocument.
-    
+
     id_name :
         The namos of the field that stores the id reference. `obj_type` must
         implement this field.
     """
-    
-    def __init__(self, document_type, field, obj_type = None, id_name = 'id', 
+
+    def __init__(self, document_type, field, obj_type = None, id_name = 'id',
                  **field_options):
-       
+
         self.document_type_obj = document_type
         self.field = field
         self.obj_type_obj = obj_type
         self.id_name = id_name
         self.field_options = field_options
-        
+
     @property
     def document_type(self):
         return self.resolve_model(self.document_type_obj)
-    
+
     @property
     def obj_type(self):
         if self.obj_type_obj is None:
             #Suppose it's a list with embedded reference.
             self.obj_type_obj = self.document_type._fields[self.field].field.document_type
         return self.resolve_model(self.obj_type_obj)
-    
+
     @staticmethod
     def resolve_model(obj):
         if isinstance(obj, string_types):
@@ -130,50 +119,55 @@ class EmbeddedReferenceField(object):
             else:
                 obj = get_document(obj)
         return obj
-        
+
 
 class MetaWithEmbedded(type):
-    """Metaclass that allows classes that implement it to use the 
+    """Metaclass that allows classes that implement it to use the
     `EmbeddedReferenceField`. To be used with the mongoengine classes it has to
     go trough `meta_extends` to inherit from the appropiate metaclass."""
+    @staticmethod    
+    def _dbkey(key):
+        return key + "_db"
     @staticmethod
     def makeprop(key,value):
-        """Returns the property for a field name (key) and the 
+        """Returns the property for a field name (key) and the
         corresponding `EmbeddedReferenceField` object (value) to be added to
         the appropiate entry."""
-        idkey = "_"+key
+        
         def getter(self):
             c = value.document_type._get_collection()
             f = value.field
             idf = value.id_name
-            idval = getattr(self, idkey)
-            mgobj = c.find_one({'%s.%s'%(f,idf):idval},
-                               {'%s.$'%f:1,"_id":0})['%s'%f][0]
-                               
+            idval = getattr(self, MetaWithEmbedded._dbkey(key))
+            if not idval:
+                return None
+            query = {'%s.%s'%(f,idf):idval}
+            projection = {'%s.$'%f:1,"_id":0}
+            mgobj = c.find_one(query, projection)['%s'%f][0]
+
             return value.obj_type(**mgobj)
-                    
+
         def setter(self, obj):
             try:
                 uid = getattr(obj, value.id_name)
             except AttributeError:
                 raise MongoTraitsError("The document %s does not have the requested id field: %s"
                     %(obj, value.id_name))
-            setattr(self,idkey, uid)
+            setattr(self,MetaWithEmbedded._dbkey(key), uid)
         return property(getter, setter)
-        
+
     def __new__(mcls, cls_name, bases, classdict):
         #Cant change classdoct size while iterationg
         d = {}
         for key,value in classdict.items():
             if isinstance(value, EmbeddedReferenceField):
                 field = fields.ObjectIdField(**value.field_options)
-                field_key = '_'+key
+                field_key = mcls._dbkey(key)
                 d[field_key] = field
                 d[key] =mcls.makeprop(key,value)
-                d['_idfield'] = value.id_name
         classdict.update(d)
         return super(MetaWithEmbedded, mcls).__new__(mcls, cls_name, bases, classdict)
-        
+
 
 class SingleId(type):
     _id_prop = 'id'
@@ -202,20 +196,21 @@ class AutoID(object):
         else:
             if uid is None:
                 uid = objectid.ObjectId()
-            
+                setattr(self, idprop, uid)
 
 
-class AbstractMeta(SingleId, MetaWithEmbedded, TraitsDBMeta):
+
+class AbstractMeta(SingleId, MetaWithEmbedded, AbstractTraitsDBMeta, MetaHasTraits):
     pass
- 
+
 #Subclassing of mongo metaclasses doesn't have an effect other that make python
-#stop complaining.       
+#stop complaining.
 class DocumentMeta(AbstractMeta, type(mg.Document)):
-    mongometa = type(mg.Document)
+    pass
 
 class EmbeddedDocumentMeta(AbstractMeta, type(mg.EmbeddedDocument)):
-    mongometa = type(mg.EmbeddedDocument)
-        
+    pass
+
 
 def meta_extends(name, meta, base):
     metaname = base.__name__ + meta.__name__
@@ -224,18 +219,17 @@ def meta_extends(name, meta, base):
     return base_meta(name, (base,), {})
 
 #This is ugly but compatible with Python 2 and 3
-    
+
 def _td__init__(self,*args,**kwargs):
     """
     Initialize the trait_db fields to track the traits.
     """
-    print ("tdinit")
     super(self.__class__._superguard,self).__init__(*args, **kwargs)
-    
-    
+
+
     def change_field(name, old, new):
         setattr(self, name+'_db',new)
-        
+
     for (key, dbkey) in self.__class__._dbtraits:
         val = getattr(self, dbkey)
         if val is not None:
@@ -250,11 +244,9 @@ _d = {
 }
 #Turns out _d is modiffied by these lines.
 Document = DocumentMeta('Document', (mg.Document, HasTraits), dict(_d))
-Document._superguard = Document 
+Document._superguard = Document
 
-EmbeddedDocument = EmbeddedDocumentMeta('EmbeddedDocument', 
-                                        (AutoID,mg.EmbeddedDocument, HasTraits), 
+EmbeddedDocument = EmbeddedDocumentMeta('EmbeddedDocument',
+                                        (AutoID,mg.EmbeddedDocument, HasTraits),
                                         dict(_d))
-EmbeddedDocument._superguard = EmbeddedDocument 
-
-mongoengine.base._document_registry = {}                                       
+EmbeddedDocument._superguard = EmbeddedDocument
