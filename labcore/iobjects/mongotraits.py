@@ -13,9 +13,7 @@ from mongoengine.base import BaseField, get_document
 from mongoengine import fields
 from IPython.utils import traitlets
 from IPython.utils.traitlets import TraitType, HasTraits, MetaHasTraits
-
 from bson import objectid
-
 
 
 RECURSIVE_REFERENCE_CONSTANT = 'self'
@@ -30,8 +28,6 @@ field_map = {
 
 class MongoTraitsError(Exception):
     pass
-
-
 
 
 class AbstractTraitsDBMeta(type):

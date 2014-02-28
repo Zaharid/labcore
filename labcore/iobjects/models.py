@@ -19,7 +19,7 @@ from IPython.utils.traitlets import Bool
 from IPython.html import widgets
 from IPython.display import display
 
-from mongotraits import (Document, EmbeddedDocument,
+from labcore.iobjects.mongotraits import (Document, EmbeddedDocument,
     EmbeddedReferenceField)
 
 
@@ -237,11 +237,22 @@ default_spec = ()
 
 
 class Link(EmbeddedDocument):
+    
+    def __init__(self, *args, **kwargs):
+        super(Link, self).__init__(*args, **kwargs)
+        if not any((self.to_output,self.fr,self.fr_input, self.to)):
+            raise TypeError("All parameters of a link must be specified.")
+    
     id = fields.ObjectIdField()
-
+    
+    to = EmbeddedReferenceField('IOGraph', 'nodes', 'IONode')
     to_output = EmbeddedReferenceField(IObject, 'outputs', Output)
     fr = EmbeddedReferenceField('IOGraph', 'nodes', 'IONode')
     fr_input = EmbeddedReferenceField(IObject, 'inputs', Input)
+    
+    def __eq__(self, other):
+        return (self.to_output == other.to_output and self.fr == other.fr and
+            self.fr_input == other.fr_input and self.to == other.to)
     
 
 
@@ -256,27 +267,39 @@ class IONode(EmbeddedDocument):
 
     id_ = fields.ObjectIdField()
     iobject = fields.ReferenceField(IObject, required = True)
-    links = fields.ListField(fields.EmbeddedDocumentField(Link))
+    inlinks = fields.ListField(fields.EmbeddedDocumentField(Link))
+    outlinks = fields.ListField(fields.EmbeddedDocumentField(Link))
 
     @property
     def parents(self):
-        return (link.fr for link in self.links)
+        return (link.fr for link in self.inlinks)
+    
+    @property
+    def children(self):
+        return (link.to for link in self.outlinks)
+        
+    @property
+    def descendants(self):
+         """Return ancestors in order (closest first)."""
+         for a in self._related(set(), 'children'):
+             yield a
 
     @property
     def ancestors(self):
-        for a in self._antecessors(set()):
+        """Return ancestors in order (closest first)."""
+        for a in self._related(set(), 'parents'):
             yield a
 
-    def _antecessors(self, existing):
-        p_set = set(self.parents)
+    def _related(self, existing, what):
+        p_set = set(getattr(self, what))
 
-        new_antecessors = p_set-existing
+        new_related = p_set-existing
         existing |= p_set
 
-        for a in new_antecessors:
+        for a in new_related:
             yield a
-        for a in new_antecessors:
-            for na in a._antecessors(existing):
+        for a in new_related:
+            for na in a._related(existing, what):
                 yield na
     
     def __getattribute__(self, attr):
@@ -300,17 +323,39 @@ class IOGraph(Document):
         G = networkx.MultiDiGraph()
         G.add_nodes_from(self.nodes)
         for node in self.nodes:
-            G.add_edges_from((link.fr, node, {'link':link}) for link in node.links)
+            G.add_edges_from((link.fr, node, {'link':link}) for link in node.inlinks)
         return G
 
-    def bind(self, fr, inp, to, out):
+    def bind(self, to, out, fr, inp):
+        if to in fr.ancestors or to is fr:
+            raise ValueError("Recursive binding is not allowed.")
         if not fr in self.nodes or not to in self.nodes:
             raise ValueError('Nodes must be in graph nodes before linking.')
         if isinstance(inp, string_types):
             inp = to.inputdict[inp]
         if isinstance(out, string_types):
             out = to.outputdict[out]
-        to.links += [Link(to_output = out, fr = fr, fr_input = inp)]
+        to.inlinks += [Link(to_output = out, fr = fr, fr_input = inp, to=to)]
+        fr.outlinks += [Link(to_output = out, fr = fr, fr_input = inp, to=to)]
+        
+    def unbind(self, to, out, fr, inp):
+        if isinstance(inp, string_types):
+            inp = to.inputdict[inp]
+        if isinstance(out, string_types):
+            out = to.outputdict[out]
+        link = Link(to_output = out, fr = fr, fr_input = inp)
+        to.links.remove(link) 
+        fr.links.remove(link)
+    
+    def draw_graph(self):
+        G = self.build_graph()
+        networkx.draw(G)
+        
+    @property
+    def graph(self):
+        #TODO: Cache?
+        return self.build_graph()
+
 
 
 

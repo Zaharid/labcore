@@ -5,6 +5,7 @@ Created on Tue Feb 25 17:26:40 2014
 @author: zah
 """
 import nose
+import unittest
 
 from labcore.iobjects.tests.common import Doc, EmbDoc,Partner
 from labcore.iobjects.tests.base import MongoTest
@@ -31,7 +32,6 @@ class Test_base(MongoTest):
         def ns(): pass
         ns.x = None       
         def fchanged():
-            print ("sdasdas")
             ns.x = 'OK'
         doc.on_trait_change(fchanged ,name = 'f')
         self.assertIsNone(ns.x)
@@ -44,4 +44,4 @@ class Test_base(MongoTest):
         self.assertTrue(p.ref is embdoc)
         
 if __name__ == '__main__':
-    nose.main(exit=False)
+    unittest.TestLoader().loadTestsFromTestCase(Test_base).debug()

@@ -23,5 +23,10 @@ for i in range(5):
 
 g.nodes = ions
 
-g.bind(ions[0], 'i1', ions[2], 'o1')
+g.bind(ions[2], 'o1', ions[0], 'i1')
+
+g.unbind(ions[2], 'o1', ions[0], 'i1')
+
+g.bind( ions[0], 'o1', ions[2], 'i1')
+
 g.save()
