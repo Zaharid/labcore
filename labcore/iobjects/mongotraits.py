@@ -128,6 +128,9 @@ class MetaWithEmbedded(type):
     @staticmethod    
     def _dbkey(key):
         return key + "_db"
+    @staticmethod    
+    def _objref(key):
+        return key + "_ref"    
     @staticmethod
     def makeprop(key,value):
         """Returns the property for a field name (key) and the
@@ -135,6 +138,9 @@ class MetaWithEmbedded(type):
         the appropiate entry."""
         
         def getter(self):
+            ref = getattr(self, MetaWithEmbedded._objref(key), None)
+            if ref:
+                return ref
             c = value.document_type._get_collection()
             f = value.field
             idf = value.id_name
@@ -146,6 +152,15 @@ class MetaWithEmbedded(type):
             mgobj = c.find_one(query, projection)['%s'%f][0]
 
             return value.obj_type(**mgobj)
+            
+        def getter2(self):
+            f = value.field
+            idf = value.id_name
+            idval = getattr(self, MetaWithEmbedded._dbkey(key))
+            query = {"%s__%s"%(f, idf) : idval}
+            print(query)
+            doc = value.document_type.objects.get(**query)
+            return getattr(doc, f)[0]
 
         def setter(self, obj):
             try:
@@ -154,6 +169,7 @@ class MetaWithEmbedded(type):
                 raise MongoTraitsError("The document %s does not have the requested id field: %s"
                     %(obj, value.id_name))
             setattr(self,MetaWithEmbedded._dbkey(key), uid)
+            setattr(self, MetaWithEmbedded._objref(key), obj)
         return property(getter, setter)
 
     def __new__(mcls, cls_name, bases, classdict):
@@ -243,10 +259,10 @@ _d = {
     'meta':{'abstract':True}
 }
 #Turns out _d is modiffied by these lines.
-Document = DocumentMeta('Document', (mg.Document, HasTraits), dict(_d))
+Document = DocumentMeta('Document', (AutoID, mg.Document, HasTraits), dict(_d))
 Document._superguard = Document
 
 EmbeddedDocument = EmbeddedDocumentMeta('EmbeddedDocument',
-                                        (AutoID,mg.EmbeddedDocument, HasTraits),
-                                        dict(_d))
+                                    (AutoID, mg.EmbeddedDocument, HasTraits),
+                                     dict(_d))
 EmbeddedDocument._superguard = EmbeddedDocument
