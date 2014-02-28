@@ -4,15 +4,7 @@ Created on Tue Feb 25 17:26:40 2014
 
 @author: zah
 """
-import unittest
-
-import mongoengine as mg
-from mongoengine.connection import _get_db
-import mongoengine.fields as fields
-from IPython.utils import traitlets
-
-from labcore.iobjects.mongotraits import (Document,
-    EmbeddedDocument, EmbeddedReferenceField)
+import nose
 
 from labcore.iobjects.tests.common import Doc, EmbDoc,Partner
 from labcore.iobjects.tests.base import MongoTest
@@ -32,6 +24,7 @@ class Test_base(MongoTest):
         del(t)
         t2 = Doc.objects.all()[0]
         self.assertTrue(t2.partner.ref is refs[3])
+        
     def test_traits(self):
         doc = Doc()
         
@@ -44,6 +37,6 @@ class Test_base(MongoTest):
         self.assertIsNone(ns.x)
         doc.f = True
         self.assertEqual(ns.x, 'OK')
-
+        
 if __name__ == '__main__':
-    unittest.main()
+    nose.main(exit=False)

@@ -31,10 +31,7 @@ field_map = {
 class MongoTraitsError(Exception):
     pass
 
-def set_field(field_class, key):
-    return field_class(
-        db_field = key
-    )
+
 
 
 class AbstractTraitsDBMeta(type):
@@ -43,6 +40,12 @@ class AbstractTraitsDBMeta(type):
     Alsom the Traits with db=True or db = Field metadata field will be
     syncronized with a Mongoengine field called traitname_db.
     """
+    @staticmethod
+    def set_field(field_class, key):
+        return field_class(
+            db_field = key
+        )
+    
     def __new__(mcls, name, bases, classdict):
         _dbtraits = []
         field_dict={}
@@ -53,9 +56,9 @@ class AbstractTraitsDBMeta(type):
                     if isinstance(field_spec, BaseField):
                         field = field_spec
                     elif isinstance(field_spec, type):
-                        field = set_field(field_spec, key)
+                        field = mcls.set_field(field_spec, key)
                     else:
-                        field = set_field(field_map.get(value.__class__,
+                        field = mcls.set_field(field_map.get(value.__class__,
                                                 fields.DynamicField), key)
 
                 dbkey = key+"_db"
@@ -219,20 +222,14 @@ class AutoID(object):
 class AbstractMeta(SingleId, MetaWithEmbedded, AbstractTraitsDBMeta, MetaHasTraits):
     pass
 
-#Subclassing of mongo metaclasses doesn't have an effect other that make python
-#stop complaining.
+
+
 class DocumentMeta(AbstractMeta, type(mg.Document)):
     pass
 
 class EmbeddedDocumentMeta(AbstractMeta, type(mg.EmbeddedDocument)):
     pass
 
-
-def meta_extends(name, meta, base):
-    metaname = base.__name__ + meta.__name__
-    base_meta = type.__new__(type, metaname, (base.__metaclass__,),
-                             dict(meta.__dict__))
-    return base_meta(name, (base,), {})
 
 #This is ugly but compatible with Python 2 and 3
 
