@@ -19,6 +19,7 @@ from IPython.utils.traitlets import Bool
 from IPython.html import widgets
 from IPython.display import display
 
+from labcore.iobjects.utils import add_child, widget_mapping
 from labcore.iobjects.mongotraits import (Document, EmbeddedDocument,
     EmbeddedReferenceField)
 
@@ -27,7 +28,7 @@ from labcore.iobjects.mongotraits import (Document, EmbeddedDocument,
 mg.connect('labcore')
 
 class Parameter(EmbeddedDocument):
-    
+
     meta = {'abstract':True}
 
     id = fields.ObjectIdField()
@@ -96,66 +97,9 @@ class IObject(Document):
         return self._paramdict(self.outputs)
 
     @property
-    def links(self):
-        return (inp for inp in self.inputs if inp.input_method == 'io_input')
-
-    @property
-    def free_inputs(self):
-        return (inp for inp in self.inputs if inp.input_method=='user_input')
-
-
-    @property
     def display_outputs(self):
         return (out for out in self.outputs if out.output_type == 'display')
 
-    @property
-    def antecessors(self):
-        for a in self._antecessors(set()):
-            yield a
-
-    def _antecessors(self, existing):
-        p_set = set(self.parents)
-
-        new_antecessors = p_set-existing
-        existing |= p_set
-
-        for a in new_antecessors:
-            yield a
-        for a in new_antecessors:
-            #yield a
-            for na in a._antecessors(existing):
-                yield na
-
-    @property
-    def graph(self):
-        #TODO: Cache?
-        return self.build_graph()
-
-    @property
-    def parents(self):
-        return {inp.fr for inp in self.inputs
-            if inp.input_method == "io_input"}
-
-
-    def _rec_graph(self, G, links):
-        for link in links:
-            fr = link.fr
-            G.add_node(fr)
-            G.add_edge(fr, self, link=link,
-                       label = "%s->%s"%(link.name, link.fr_output)
-            )
-            fr._rec_graph(G, fr.links)
-
-
-    def build_graph(self, ):
-        G = networkx.MultiDiGraph()
-        G.add_node(self)
-        self._rec_graph(G, self.links)
-        return G
-
-    def draw_graph(self):
-        G = self.build_graph()
-        networkx.draw(G)
 
 
 
@@ -237,23 +181,26 @@ default_spec = ()
 
 
 class Link(EmbeddedDocument):
-    
+
     def __init__(self, *args, **kwargs):
         super(Link, self).__init__(*args, **kwargs)
-        if not any((self.to_output,self.fr,self.fr_input, self.to)):
+        if not all((self.to_output,self.fr,self.fr_input, self.to)):
             raise TypeError("All parameters of a link must be specified.")
-    
+
     id = fields.ObjectIdField()
-    
+
     to = EmbeddedReferenceField('IOGraph', 'nodes', 'IONode')
     to_output = EmbeddedReferenceField(IObject, 'outputs', Output)
     fr = EmbeddedReferenceField('IOGraph', 'nodes', 'IONode')
     fr_input = EmbeddedReferenceField(IObject, 'inputs', Input)
-    
+
     def __eq__(self, other):
         return (self.to_output == other.to_output and self.fr == other.fr and
             self.fr_input == other.fr_input and self.to == other.to)
-    
+
+    def __unicode__(self):
+        return "{0.fr}:{0.fr_input}->{0.to}:{0.to_output}".format(self)
+
 
 
 class IONode(EmbeddedDocument):
@@ -261,11 +208,12 @@ class IONode(EmbeddedDocument):
         if args and isinstance(args[0], IObject):
             kwargs['iobject'] = args[0]
             args = args[1:]
-           
-        super(IONode, self).__init__(*args,**kwargs)
-        
 
-    id_ = fields.ObjectIdField()
+        super(IONode, self).__init__(*args,**kwargs)
+
+    id = fields.ObjectIdField()
+
+    gui_order = fields.IntField()
     iobject = fields.ReferenceField(IObject, required = True)
     inlinks = fields.ListField(fields.EmbeddedDocumentField(Link))
     outlinks = fields.ListField(fields.EmbeddedDocumentField(Link))
@@ -273,11 +221,11 @@ class IONode(EmbeddedDocument):
     @property
     def parents(self):
         return (link.fr for link in self.inlinks)
-    
+
     @property
     def children(self):
         return (link.to for link in self.outlinks)
-        
+
     @property
     def descendants(self):
          """Return ancestors in order (closest first)."""
@@ -301,7 +249,36 @@ class IONode(EmbeddedDocument):
         for a in new_related:
             for na in a._related(existing, what):
                 yield na
-    
+    @property
+    def linked_inputs(self):
+        for link in self.inlinks:
+            yield link.fr_input
+
+    @property
+    def linked_outputs(self):
+        for link in self.outlinks:
+            yield link.to_output
+
+    @property
+    def free_inputs(self):
+        fis = set(self.inputs) - set(self.linked_inputs)
+        for fi in fis:
+            yield fi
+
+    @property
+    def free_outputs(self):
+        fos = set(self.outputs) - set(self.linked_outputs)
+        for fo in fos:
+            yield fo
+
+
+    def make_form(self, css_classes):
+        iocont =  widgets.ContainerWidget()
+        css_classes[iocont] = ('iobject-container')
+        add_child(iocont, widgets.LatexWidget(value = self.name))
+
+
+
     def __getattribute__(self, attr):
         try:
             return object.__getattribute__(self, attr)
@@ -318,7 +295,13 @@ class IOGraph(Document):
 
     name = fields.StringField()
     nodes = fields.ListField(fields.EmbeddedDocumentField(IONode))
-    
+
+    @property
+    def links(self):
+        for node in self.nodes:
+            for link in node.inlinks:
+                yield link
+
     def build_graph(self):
         G = networkx.MultiDiGraph()
         G.add_nodes_from(self.nodes)
@@ -326,7 +309,7 @@ class IOGraph(Document):
             G.add_edges_from((link.fr, node, {'link':link}) for link in node.inlinks)
         return G
 
-    def bind(self, to, out, fr, inp):
+    def bind(self, fr, out, to, inp):
         if to in fr.ancestors or to is fr:
             raise ValueError("Recursive binding is not allowed.")
         if not fr in self.nodes or not to in self.nodes:
@@ -335,32 +318,46 @@ class IOGraph(Document):
             inp = to.inputdict[inp]
         if isinstance(out, string_types):
             out = to.outputdict[out]
-        to.inlinks += [Link(to_output = out, fr = fr, fr_input = inp, to=to)]
-        fr.outlinks += [Link(to_output = out, fr = fr, fr_input = inp, to=to)]
-        
-    def unbind(self, to, out, fr, inp):
+        link = Link(to_output = out, fr = fr, fr_input = inp, to=to)
+        to.inlinks += [link]
+        fr.outlinks += [link]
+
+    def unbind(self, fr, out, to, inp):
         if isinstance(inp, string_types):
             inp = to.inputdict[inp]
         if isinstance(out, string_types):
             out = to.outputdict[out]
-        link = Link(to_output = out, fr = fr, fr_input = inp)
-        to.links.remove(link) 
-        fr.links.remove(link)
-    
+        link = Link(to = to, to_output = out, fr = fr, fr_input = inp)
+        self.remove_link(link)
+
+    def remove_link(self, link):
+        to = link.to
+        fr = link.fr
+        to.inlinks.remove(link)
+        fr.outlinks.remove(link)
+        del(link)
+
+
     def draw_graph(self):
         G = self.build_graph()
         networkx.draw(G)
-        
+
+    def make_control(self):
+        control_container = widgets.ContainerWidget()
+        css_classes = {control_container: 'control-container'}
+        for node in self.sorted_iterate():
+            add_child(control_container, node.make_form(css_classes))
+
+    def sorted_iterate(self):
+        #TODO Improve this
+        return iter(self.nodes)
+
     @property
     def graph(self):
         #TODO: Cache?
         return self.build_graph()
 
 
-
-
-def add_child(container, child):
-    container.children = container.children + [child]
 
 
 class IPIObject(IObject):
@@ -384,8 +381,6 @@ class IPIObject(IObject):
 
     def make_control(self):
         control_container = widgets.ContainerWidget()
-
-
         css_classes = {control_container: 'control-container'}
 
         add_child(control_container,
