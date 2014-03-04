@@ -15,11 +15,11 @@ from mongoengine import fields
 from bson import objectid
 
 from IPython.utils.py3compat import string_types
-from IPython.utils.traitlets import Bool
+from IPython.utils.traitlets import Bool, Any
 from IPython.html import widgets
 from IPython.display import display
 
-from labcore.iobjects.utils import add_child, widget_mapping
+from labcore.iobjects.utils import add_child, widget_mapping, param_types
 from labcore.iobjects.mongotraits import (Document, EmbeddedDocument,
     EmbeddedReferenceField)
 
@@ -34,10 +34,10 @@ class Parameter(EmbeddedDocument):
     id = fields.ObjectIdField()
 
     name = fields.StringField(required = True, max_length=256, unique=True)
-    param_type = fields.StringField(default="STR")
+    param_type = fields.StringField(default="String", choices = param_types)
 
     default = fields.DynamicField()
-    value = fields.DynamicField()
+    value = Any(db = True)
 
 
     def __str__(self):
@@ -81,7 +81,7 @@ class IObject(Document):
     outputs = fields.ListField(mg.EmbeddedDocumentField(Output))
 
     address = fields.StringField()
-    executed = Bool(default_value = False, db=True)
+    #executed = Bool(default_value = False, db=True)
     log_output = fields.BooleanField(default = False)
     #dispays = fields.ListField(mg.EmbeddedDocumentField(Parameter))
 
@@ -134,40 +134,7 @@ class IObject(Document):
             inp.fr_output = outp
 
 
-    def run(self):
-        params = {}
-        runinfo = RunInfo()
 
-        for p in self.parents:
-            if (not p.executed or
-                any(not ant.executed for ant in p.antecessors)):
-                p.run()
-
-        for inp in self.inputs:
-
-            if inp.input_method == 'io_input':
-                inp.value = inp.fr_output.value
-            elif inp.input_method == 'user_input':
-                inp.value = inp.widget.value
-            params[inp.name] = inp.value
-
-        try:
-            results = self.execute(**params)
-        except Exception as e:
-            runinfo.success = False
-            runinfo.error = e
-        else:
-            for out in self.outputs:
-                last_value = out.value
-                new_value = results[out.name]
-                if last_value != new_value and out.is_connected:
-                    out.to.executed = False
-                out.value = new_value
-
-
-            self.executed = True
-
-        return results
 
     def __str__(self):
         return self.name
@@ -212,11 +179,14 @@ class IONode(EmbeddedDocument):
         super(IONode, self).__init__(*args,**kwargs)
 
     id = fields.ObjectIdField()
-
-    gui_order = fields.IntField()
     iobject = fields.ReferenceField(IObject, required = True)
+
     inlinks = fields.ListField(fields.EmbeddedDocumentField(Link))
     outlinks = fields.ListField(fields.EmbeddedDocumentField(Link))
+
+    gui_order = fields.IntField()
+    executed = Bool(db = True)
+    failed = Bool(db = True)
 
     @property
     def parents(self):
@@ -271,13 +241,76 @@ class IONode(EmbeddedDocument):
         for fo in fos:
             yield fo
 
+    def _executed_changed(self):
+        if self.executed:
+            self.widget.add_class('executed')
+        else:
+            self.widget.remove_class('executed')
+            for child in self.children:
+                child.executed = False
+
+    def run(self, **kwargs):
+        params = dict(kwargs)
+        runinfo = RunInfo()
+
+        for inlink in self.inlinks:
+            if inlink.fr_input.name in kwargs:
+                continue
+            p = inlink.fr
+            if (not p.executed or
+                any(not ant.executed for ant in p.antecessors)):
+
+                p.run()
+
+        for inp in self.inputs:
+            if inp.name in kwargs:
+                continue
+            elif inp.input_method == 'user_input':
+                inp.value = inp.widget.value
+            params[inp.name] = inp.value
+        try:
+            results = self.iobject.execute(**params)
+        except Exception as e:
+            runinfo.success = False
+            runinfo.error = e
+            self.executed = False
+            self.failed = True
+        else:
+            for out in self.outputs:
+                last_value = out.value
+                new_value = results[out.name]
+                if last_value != new_value and out.is_connected:
+                    out.to.executed = False
+                out.value = new_value
+
+            self.executed = True
+
+        return results
 
     def make_form(self, css_classes):
         iocont =  widgets.ContainerWidget()
         css_classes[iocont] = ('iobject-container')
         add_child(iocont, widgets.LatexWidget(value = self.name))
+        for inp in self.free_inputs:
+            w = widgets.TextWidget(description = inp.name, value = inp.value,
+                       default = inp.default)
+            inp.widget = w
 
+            def set_exec(w):
+                self.executed = False
+            w.on_trait_change(set_exec, name = 'value')
+            add_child(iocont,w)
 
+        for out in self.display_outputs:
+            w = widgets.HTMLWidget()
+            out.widget = w
+            add_child(iocont,w)
+
+        button = widgets.ButtonWidget(description = "Execute %s" % self.name)
+        def _run(b):
+            self.run()
+        button.on_click(_run)
+        add_child(iocont, button)
 
     def __getattribute__(self, attr):
         try:
@@ -309,6 +342,12 @@ class IOGraph(Document):
             G.add_edges_from((link.fr, node, {'link':link}) for link in node.inlinks)
         return G
 
+    @property
+    def graph(self):
+        #TODO: Cache?
+        return self.build_graph()
+
+
     def bind(self, fr, out, to, inp):
         if to in fr.ancestors or to is fr:
             raise ValueError("Recursive binding is not allowed.")
@@ -318,6 +357,12 @@ class IOGraph(Document):
             inp = to.inputdict[inp]
         if isinstance(out, string_types):
             out = to.outputdict[out]
+
+        def set_output(o, value):
+            inp.value = value
+
+        out.on_trait_change(set_output, name = 'value')
+        out.handler = set_output
         link = Link(to_output = out, fr = fr, fr_input = inp, to=to)
         to.inlinks += [link]
         fr.outlinks += [link]
@@ -333,10 +378,10 @@ class IOGraph(Document):
     def remove_link(self, link):
         to = link.to
         fr = link.fr
+        out = link.to_output
+        out.on_trait_change(out.handler, name = 'value', remove = True)
         to.inlinks.remove(link)
         fr.outlinks.remove(link)
-        del(link)
-
 
     def draw_graph(self):
         G = self.build_graph()
@@ -351,13 +396,6 @@ class IOGraph(Document):
     def sorted_iterate(self):
         #TODO Improve this
         return iter(self.nodes)
-
-    @property
-    def graph(self):
-        #TODO: Cache?
-        return self.build_graph()
-
-
 
 
 class IPIObject(IObject):
@@ -436,6 +474,3 @@ class IOSimple(IPIObject):
             results[out.name] = kwargs[ next(keys) ]
 
         return results
-
-
-
