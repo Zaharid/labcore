@@ -25,7 +25,6 @@ from labcore.iobjects.mongotraits import (Document, EmbeddedDocument,
 
 
 
-mg.connect('labcore')
 
 class Parameter(EmbeddedDocument):
 
