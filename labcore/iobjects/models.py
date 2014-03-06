@@ -30,7 +30,7 @@ class Parameter(EmbeddedDocument):
 
     meta = {'abstract':True}
 
-    id = fields.ObjectIdField()
+    eid = fields.ObjectIdField()
 
     name = fields.StringField(required = True, max_length=256, unique=True)
     param_type = fields.StringField(default="String", choices = param_types)
@@ -155,7 +155,7 @@ class Link(EmbeddedDocument):
         if not all((self.to_output,self.fr,self.fr_input, self.to)):
             raise TypeError("All parameters of a link must be specified.")
 
-    id = fields.ObjectIdField()
+    eid = fields.ObjectIdField()
 
     to = fields.ReferenceField('IONode')
     to_output = EmbeddedReferenceField('IONode', Output)

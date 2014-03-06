@@ -179,7 +179,7 @@ class MetaWithEmbedded(type):
 
 
 class SingleId(type):
-    _id_prop = 'id'
+    _id_prop = 'sid'
     def __init__(mcls, class_name, bases, class_dict):
         mcls._iddict = weakref.WeakValueDictionary()
         super(SingleId,mcls).__init__(class_name, bases, class_dict)
@@ -194,7 +194,7 @@ class SingleId(type):
         return ins
 
 class AutoID(object):
-    _autoid_prop = 'id'
+    _autoid_prop = 'eid'
     def __init__(self, *args, **kwargs):
         super(AutoID,self).__init__(*args,**kwargs)
         idprop = self.__class__._autoid_prop
