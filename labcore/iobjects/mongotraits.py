@@ -41,7 +41,7 @@ class AbstractTraitsDBMeta(type):
         return field_class(
             db_field = key
         )
-    
+
     def __new__(mcls, name, bases, classdict):
         _dbtraits = []
         field_dict={}
@@ -124,18 +124,18 @@ class MetaWithEmbedded(type):
     """Metaclass that allows classes that implement it to use the
     `EmbeddedReferenceField`. To be used with the mongoengine classes it has to
     go trough `meta_extends` to inherit from the appropiate metaclass."""
-    @staticmethod    
+    @staticmethod
     def _dbkey(key):
         return key + "_db"
-    @staticmethod    
+    @staticmethod
     def _objref(key):
-        return key + "_ref"    
+        return key + "_ref"
     @staticmethod
     def makeprop(key,value):
         """Returns the property for a field name (key) and the
         corresponding `EmbeddedReferenceField` object (value) to be added to
         the appropiate entry."""
-        
+
         def getter(self):
             ref = getattr(self, MetaWithEmbedded._objref(key), None)
             if ref:
@@ -151,7 +151,7 @@ class MetaWithEmbedded(type):
             mgobj = c.find_one(query, projection)['%s'%f][0]
 
             return value.obj_type(**mgobj)
-            
+
         def getter2(self):
             f = value.field
             idf = value.id_name
@@ -218,7 +218,7 @@ class AutoID(object):
 
 
 
-class AbstractMeta(SingleId, MetaWithEmbedded, AbstractTraitsDBMeta, MetaHasTraits):
+class AbstractMeta(MetaWithEmbedded, AbstractTraitsDBMeta, MetaHasTraits):
     pass
 
 
