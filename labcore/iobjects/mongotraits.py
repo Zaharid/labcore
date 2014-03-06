@@ -254,7 +254,7 @@ _d = {
     'meta':{'abstract':True}
 }
 #Turns out _d is modiffied by these lines.
-Document = DocumentMeta('Document', (AutoID, mg.Document, HasTraits), dict(_d))
+Document = DocumentMeta('Document', (mg.Document, HasTraits), dict(_d))
 Document._superguard = Document
 
 EmbeddedDocument = EmbeddedDocumentMeta('EmbeddedDocument',
