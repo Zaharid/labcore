@@ -158,10 +158,10 @@ class Link(EmbeddedDocument):
 
     id = fields.ObjectIdField()
 
-    to = EmbeddedReferenceField('IOGraph', 'nodes', 'IONode')
-    to_output = EmbeddedReferenceField('IOGraph', 'nodes.outputs', Output)
-    fr = EmbeddedReferenceField('IOGraph', 'nodes', 'IONode')
-    fr_input = EmbeddedReferenceField('IOGraph', 'nodes.inputs', Input)
+    to = fields.ReferenceField('IONode')
+    to_output = EmbeddedReferenceField('IONode', Output)
+    fr = fields.ReferenceField('IONode')
+    fr_input = EmbeddedReferenceField('IONode', Input)
 
     def __eq__(self, other):
         return (self.to_output == other.to_output and self.fr == other.fr and
@@ -172,7 +172,7 @@ class Link(EmbeddedDocument):
 
 
 
-class IONode(EmbeddedDocument):
+class IONode(Document):
     def __init__(self, *args, **kwargs):
         if args and isinstance(args[0], IObject):
             kwargs['iobject'] = args[0]
@@ -200,7 +200,7 @@ class IONode(EmbeddedDocument):
         for inp in dead_ins:
             self.inputs.remove(inp)
 
-    id = fields.ObjectIdField()
+    #id = fields.ObjectIdField()
     iobject = fields.ReferenceField(IObject, required = True)
 
     inputs = fields.ListField(fields.EmbeddedDocumentField(Input))
@@ -379,7 +379,7 @@ class IOGraph(Document):
 
 
     name = fields.StringField()
-    nodes = fields.ListField(fields.EmbeddedDocumentField(IONode))
+    nodes = fields.ListField(fields.ReferenceField(IONode))
 
     @property
     def links(self):
