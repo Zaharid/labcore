@@ -152,15 +152,6 @@ class MetaWithEmbedded(type):
 
             return value.obj_type(**mgobj)
 
-        def getter2(self):
-            f = value.field
-            idf = value.id_name
-            idval = getattr(self, MetaWithEmbedded._dbkey(key))
-            query = {"%s__%s"%(f, idf) : idval}
-            print(query)
-            doc = value.document_type.objects.get(**query)
-            return getattr(doc, f)[0]
-
         def setter(self, obj):
             try:
                 uid = getattr(obj, value.id_name)

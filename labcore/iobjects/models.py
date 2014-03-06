@@ -7,7 +7,7 @@ Created on Tue Feb 11 17:18:00 2014
 #from __future__ import absolute_import
 
 import itertools
-
+import copy
 
 import mongoengine as mg
 import networkx
@@ -39,6 +39,8 @@ class Parameter(EmbeddedDocument):
     default = fields.DynamicField()
     value = Any(db = True)
 
+    def __eq__(self, other):
+        return self.id == other.id
 
     def __str__(self):
         return self.name
@@ -157,9 +159,9 @@ class Link(EmbeddedDocument):
     id = fields.ObjectIdField()
 
     to = EmbeddedReferenceField('IOGraph', 'nodes', 'IONode')
-    to_output = EmbeddedReferenceField(IObject, 'outputs', Output)
+    to_output = EmbeddedReferenceField('IOGraph', 'nodes.outputs', Output)
     fr = EmbeddedReferenceField('IOGraph', 'nodes', 'IONode')
-    fr_input = EmbeddedReferenceField(IObject, 'inputs', Input)
+    fr_input = EmbeddedReferenceField('IOGraph', 'nodes.inputs', Input)
 
     def __eq__(self, other):
         return (self.to_output == other.to_output and self.fr == other.fr and
@@ -175,11 +177,34 @@ class IONode(EmbeddedDocument):
         if args and isinstance(args[0], IObject):
             kwargs['iobject'] = args[0]
             args = args[1:]
-
         super(IONode, self).__init__(*args,**kwargs)
+        if not self.iobject:
+            raise TypeError("An IObject is needed to initialize a node.")
+
+        obj_outs = set(self.iobject.outputs)
+        obj_ins = set(self.iobject.inputs)
+        my_outs = set(self.outputs)
+        my_ins = set(self.inputs)
+
+        new_outs = obj_outs - my_outs
+        new_ins = obj_ins - my_ins
+        for out in new_outs:
+            self.outputs.append(copy.copy(out))
+        for inp in new_ins:
+            self.inputs.append(copy.copy(inp))
+
+        dead_outs = my_outs - obj_outs
+        dead_ins = my_ins - obj_ins
+        for out in dead_outs:
+            self.outputs.remove(out)
+        for inp in dead_ins:
+            self.inputs.remove(inp)
 
     id = fields.ObjectIdField()
     iobject = fields.ReferenceField(IObject, required = True)
+
+    inputs = fields.ListField(fields.EmbeddedDocumentField(Input))
+    outputs = fields.ListField(fields.EmbeddedDocumentField(Output))
 
     inlinks = fields.ListField(fields.EmbeddedDocumentField(Link))
     outlinks = fields.ListField(fields.EmbeddedDocumentField(Link))
@@ -187,6 +212,17 @@ class IONode(EmbeddedDocument):
     gui_order = fields.IntField()
     executed = Bool(db = True)
     failed = Bool(db = True)
+
+    def _paramdict(self, paramlist):
+        return {param.name : param for param in paramlist}
+
+    @property
+    def inputdict(self):
+        return self._paramdict(self.inputs)
+
+    @property
+    def outputdict(self):
+        return self._paramdict(self.outputs)
 
     @property
     def parents(self):
@@ -248,6 +284,7 @@ class IONode(EmbeddedDocument):
             self.widget.remove_class('executed')
             for child in self.children:
                 child.executed = False
+
 
     def run(self, **kwargs):
         params = dict(kwargs)
@@ -312,11 +349,16 @@ class IONode(EmbeddedDocument):
         button.on_click(_run)
         add_child(iocont, button)
 
-    def __getattribute__(self, attr):
-        try:
-            return object.__getattribute__(self, attr)
-        except AttributeError:
-            return getattr(self.iobject, attr)
+    def __eq__(self, other):
+        return self.id == other.id
+
+#==============================================================================
+#     def __getattribute__(self, attr):
+#         try:
+#             return object.__getattribute__(self, attr)
+#         except AttributeError:
+#             return getattr(self.iobject, attr)
+#==============================================================================
 
     def __unicode__(self):
         return self.iobject.name
@@ -325,6 +367,16 @@ class IONode(EmbeddedDocument):
 
 
 class IOGraph(Document):
+
+    def __init__(self, *args, **kwargs):
+        super(IOGraph, self).__init__(*args, **kwargs)
+
+        for link in self.links:
+            if self._link_valid(link):
+                self._init_link(link)
+            else:
+                self.remove_link(link)
+
 
     name = fields.StringField()
     nodes = fields.ListField(fields.EmbeddedDocumentField(IONode))
@@ -347,6 +399,20 @@ class IOGraph(Document):
         #TODO: Cache?
         return self.build_graph()
 
+    def _link_valid(self, link):
+        return (link.to in self.nodes and link.fr in self.nodes and
+            link.to_output in link.to.outputs and
+            link.fr_input in link.fr.inputs)
+
+    def _init_link(self, link):
+        inp = link.fr_input
+        out = link.to_output
+        def set_output(o, value):
+            inp.value = value
+
+        out.on_trait_change(set_output, name = 'value')
+        out.handler = set_output
+
 
     def bind(self, fr, out, to, inp):
         if to in fr.ancestors or to is fr:
@@ -358,14 +424,10 @@ class IOGraph(Document):
         if isinstance(out, string_types):
             out = to.outputdict[out]
 
-        def set_output(o, value):
-            inp.value = value
-
-        out.on_trait_change(set_output, name = 'value')
-        out.handler = set_output
         link = Link(to_output = out, fr = fr, fr_input = inp, to=to)
         to.inlinks += [link]
         fr.outlinks += [link]
+        self._init_link(link)
 
     def unbind(self, fr, out, to, inp):
         if isinstance(inp, string_types):
