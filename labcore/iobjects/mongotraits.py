@@ -16,6 +16,7 @@ from IPython.utils.traitlets import TraitType, HasTraits, MetaHasTraits
 from bson import objectid
 
 
+IDFIELD = 'eid'
 RECURSIVE_REFERENCE_CONSTANT = 'self'
 
 field_map = {
@@ -89,7 +90,7 @@ class EmbeddedReferenceField(object):
         implement this field.
     """
 
-    def __init__(self, document_type, field, obj_type = None, id_name = 'id',
+    def __init__(self, document_type, field, obj_type = None, id_name = IDFIELD,
                  **field_options):
 
         self.document_type_obj = document_type
@@ -157,7 +158,7 @@ class MetaWithEmbedded(type):
                 uid = getattr(obj, value.id_name)
             except AttributeError:
                 raise MongoTraitsError("The document %s does not have the requested id field: %s"
-                    %(obj, value.id_name))
+                    %(obj.__class__, value.id_name))
             setattr(self,MetaWithEmbedded._dbkey(key), uid)
             setattr(self, MetaWithEmbedded._objref(key), obj)
         return property(getter, setter)
@@ -179,7 +180,7 @@ class MetaWithEmbedded(type):
 
 
 class SingleId(type):
-    _id_prop = 'sid'
+    _id_prop = IDFIELD
     def __init__(mcls, class_name, bases, class_dict):
         mcls._iddict = weakref.WeakValueDictionary()
         super(SingleId,mcls).__init__(class_name, bases, class_dict)
@@ -194,7 +195,7 @@ class SingleId(type):
         return ins
 
 class AutoID(object):
-    _autoid_prop = 'eid'
+    _autoid_prop = IDFIELD
     def __init__(self, *args, **kwargs):
         super(AutoID,self).__init__(*args,**kwargs)
         idprop = self.__class__._autoid_prop

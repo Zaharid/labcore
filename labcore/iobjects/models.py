@@ -39,7 +39,7 @@ class Parameter(EmbeddedDocument):
     value = Any(db = True)
 
     def __eq__(self, other):
-        return self.id == other.id
+        return self.eid == other.eid
 
     def __str__(self):
         return self.name
