@@ -16,7 +16,7 @@ from IPython.utils.traitlets import TraitType, HasTraits, MetaHasTraits
 from bson import objectid
 
 
-IDFIELD = 'eid'
+IDFIELD = 'id'
 RECURSIVE_REFERENCE_CONSTANT = 'self'
 
 field_map = {
@@ -255,7 +255,7 @@ _d = {
     'meta':{'abstract':True}
 }
 #Turns out _d is modiffied by these lines.
-Document = DocumentMeta('Document', (mg.Document, HasTraits), dict(_d))
+Document = DocumentMeta('Document', (AutoID, mg.Document, HasTraits), dict(_d))
 Document._superguard = Document
 
 EmbeddedDocument = EmbeddedDocumentMeta('EmbeddedDocument',

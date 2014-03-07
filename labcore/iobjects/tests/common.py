@@ -15,7 +15,7 @@ class Partner(EmbeddedDocument):
     name = fields.StringField()
     ref = EmbeddedReferenceField('Doc', 'refs')
 
-class Doc(AutoID, Document):
+class Doc(Document):
 
     ids = itertools.cycle((1,2))
     def __init__(self, *args, **kwargs):
@@ -23,7 +23,7 @@ class Doc(AutoID, Document):
         self.uid = next(Doc.ids)
     uid = traitlets.Any(db = True)
     f = traitlets.Bool(db=True)
-    eid = fields.ObjectIdField()
+    id = fields.ObjectIdField()
 
     g = traitlets.Any(db=fields.DynamicField)
     h = fields.DynamicField()
@@ -35,7 +35,7 @@ class Doc(AutoID, Document):
         return str(d)
 
 class EmbDoc(EmbeddedDocument):
-    eid = fields.ObjectIdField()
+    id = fields.ObjectIdField()
     name = fields.StringField()
 
 

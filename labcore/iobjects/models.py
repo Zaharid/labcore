@@ -30,7 +30,7 @@ class Parameter(EmbeddedDocument):
 
     meta = {'abstract':True}
 
-    eid = fields.ObjectIdField()
+    id = fields.ObjectIdField()
 
     name = fields.StringField(required = True, max_length=256, unique=True)
     param_type = fields.StringField(default="String", choices = param_types)
@@ -39,10 +39,10 @@ class Parameter(EmbeddedDocument):
     value = Any(db = True)
 
     def __eq__(self, other):
-        return self.eid == other.eid
+        return self.id == other.id
 
     def __hash__(self):
-        return hash(self.eid)
+        return hash(self.id)
 
     def __str__(self):
         return self.name
@@ -160,7 +160,7 @@ class Link(EmbeddedDocument):
 #             raise TypeError("All parameters of a link must be specified.")
 #==============================================================================
 
-    eid = fields.ObjectIdField()
+    id = fields.ObjectIdField()
 
     to = fields.ReferenceField('IONode')
     fr_output = EmbeddedReferenceField('IONode', 'outputs')
