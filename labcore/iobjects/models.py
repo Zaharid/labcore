@@ -268,12 +268,12 @@ class IONode(Document):
     @property
     def linked_inputs(self):
         for link in self.inlinks:
-            yield link.fr_output
+            yield link.to_input
 
     @property
     def linked_outputs(self):
         for link in self.outlinks:
-            yield link.to_input
+            yield link.fr_output
 
     @property
     def free_inputs(self):
@@ -411,12 +411,12 @@ class IOGraph(Document):
 
     def _link_valid(self, link):
         return (link.to in self.nodes and link.fr in self.nodes and
-            link.to_input in link.to.outputs and
-            link.fr_output in link.fr.inputs)
+            link.fr_output in link.fr.outputs and
+            link.to_input in link.to.inputs)
 
     def _init_link(self, link):
-        inp = link.fr_output
-        out = link.to_input
+        inp = link.to_input
+        out = link.fr_output
         def set_output(o, value):
             inp.value = value
 
@@ -432,7 +432,7 @@ class IOGraph(Document):
         if isinstance(inp, string_types):
             inp = to.inputdict[inp]
         if isinstance(out, string_types):
-            out = to.outputdict[out]
+            out = fr.outputdict[out]
 
         link = Link(to_input = inp, fr = fr, fr_output = out, to=to)
 
@@ -446,14 +446,14 @@ class IOGraph(Document):
         if isinstance(inp, string_types):
             inp = to.inputdict[inp]
         if isinstance(out, string_types):
-            out = to.outputdict[out]
+            out = fr.outputdict[out]
         link = Link(to = to, to_input = inp, fr = fr, fr_output = out)
         self.remove_link(link)
 
     def remove_link(self, link):
         to = link.to
         fr = link.fr
-        out = link.to_input
+        out = link.fr_output
         out.on_trait_change(out.handler, name = 'value', remove = True)
         to.inlinks.remove(link)
         to.inlinks = list(to.inlinks)
