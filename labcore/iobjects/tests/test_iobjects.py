@@ -28,7 +28,6 @@ class Test_base(MongoTest):
             io.save()
             ion = IONode(io)
             ions += [ion]
-            ion.save()
 
         g.nodes = ions
         g.bind( ions[0], 'o1', ions[1], 'i1')
@@ -36,9 +35,13 @@ class Test_base(MongoTest):
         g.bind( ions[1], 'o2', ions[3], 'i2')
         g.bind( ions[3], 'o2', ions[4], 'i2')
         g.bind( ions[2], 'o1', ions[4], 'i1')
-
+        for ion in ions:
+            print ion.inlinks
+            print ion.outlinks
+            #print ion._changed_fields
+            ion.save()
         g.save()
-        for ion in ions: ion.save()
+
         self.g = g
         self.ions = ions
 

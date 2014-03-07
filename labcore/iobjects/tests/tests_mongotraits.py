@@ -15,16 +15,16 @@ class Test_base(MongoTest):
         refs = [EmbDoc(name = i) for i in "xyzt"]
         t = Doc()
         t.refs = refs
-        assert(refs[0].id is not None)
+        assert(refs[0].eid is not None)
         x = Partner(name = "p")
         x.ref = refs[3]
         t.partner = x
-        assert(t.partner.ref.id == refs[3].id)
+        assert(t.partner.ref.eid == refs[3].eid)
         t.save()
-        self.assertTrue(Doc.objects.all()[0].id == t.id)
+        self.assertTrue(Doc.objects.all()[0].eid == t.eid)
         del(t)
         t2 = Doc.objects.all()[0]
-        self.assertTrue(t2.partner.ref.id == refs[3].id)
+        self.assertTrue(t2.partner.ref.eid == refs[3].eid)
 
     def test_traits(self):
         doc = Doc()

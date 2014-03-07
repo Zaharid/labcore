@@ -12,14 +12,14 @@ import copy
 import mongoengine as mg
 import networkx
 from mongoengine import fields
-from bson import objectid
 
 from IPython.utils.py3compat import string_types
 from IPython.utils.traitlets import Bool, Any
 from IPython.html import widgets
 from IPython.display import display
 
-from labcore.iobjects.utils import add_child, widget_mapping, param_types
+from labcore.iobjects.utils import (add_child, widget_mapping, param_types,
+                                     )
 from labcore.iobjects.mongotraits import (Document, EmbeddedDocument,
     EmbeddedReferenceField)
 
@@ -40,6 +40,9 @@ class Parameter(EmbeddedDocument):
 
     def __eq__(self, other):
         return self.eid == other.eid
+
+    def __hash__(self):
+        return hash(self.eid)
 
     def __str__(self):
         return self.name
@@ -150,21 +153,29 @@ default_spec = ()
 
 class Link(EmbeddedDocument):
 
-    def __init__(self, *args, **kwargs):
-        super(Link, self).__init__(*args, **kwargs)
-        if not all((self.to_output,self.fr,self.fr_input, self.to)):
-            raise TypeError("All parameters of a link must be specified.")
+#==============================================================================
+#     def __init__(self, *args, **kwargs):
+#         super(Link, self).__init__(*args, **kwargs)
+#         if not all((self.to_output,self.fr,self.fr_input, self.to)):
+#             raise TypeError("All parameters of a link must be specified.")
+#==============================================================================
 
     eid = fields.ObjectIdField()
 
     to = fields.ReferenceField('IONode')
-    to_output = EmbeddedReferenceField('IONode', Output)
+    fr_output = EmbeddedReferenceField('IONode', 'outputs')
     fr = fields.ReferenceField('IONode')
-    fr_input = EmbeddedReferenceField('IONode', Input)
+    to_input = EmbeddedReferenceField('IONode', 'inputs')
 
     def __eq__(self, other):
         return (self.to_output == other.to_output and self.fr == other.fr and
             self.fr_input == other.fr_input and self.to == other.to)
+    def __hash__(self):
+        a = hash(self.to_output)
+        b = hash(self.to)
+        c = hash(self.fr_input)
+        d = hash(self.fr)
+        return a^b^c^d
 
     def __unicode__(self):
         return "{0.fr}:{0.fr_input}->{0.to}:{0.to_output}".format(self)
@@ -424,8 +435,11 @@ class IOGraph(Document):
             out = to.outputdict[out]
 
         link = Link(to_output = out, fr = fr, fr_input = inp, to=to)
-        to.inlinks += [link]
-        fr.outlinks += [link]
+
+        #Do this way to trigger _changed_fields-
+        to.inlinks = to.inlinks + [link]
+        fr.outlinks = fr.outlinks + [link]
+
         self._init_link(link)
 
     def unbind(self, fr, out, to, inp):
@@ -442,7 +456,9 @@ class IOGraph(Document):
         out = link.to_output
         out.on_trait_change(out.handler, name = 'value', remove = True)
         to.inlinks.remove(link)
+        to.inlinks = list(to.inlinks)
         fr.outlinks.remove(link)
+        fr.outlinks = list(fr.outlinks)
 
     def draw_graph(self):
         G = self.build_graph()
