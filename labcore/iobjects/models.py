@@ -124,7 +124,7 @@ class IObject(Document):
             outp.to_input = inp
 
 
-    def bind_to_output(self, fr, inputs , outputs):
+    def bind_to_input(self, fr, inputs , outputs):
         if self in fr.antecessors:
             raise ValueError("Recursive binding is not allowed")
 
@@ -156,7 +156,7 @@ class Link(EmbeddedDocument):
 #==============================================================================
 #     def __init__(self, *args, **kwargs):
 #         super(Link, self).__init__(*args, **kwargs)
-#         if not all((self.to_output,self.fr,self.fr_input, self.to)):
+#         if not all((self.to_input,self.fr,self.fr_output, self.to)):
 #             raise TypeError("All parameters of a link must be specified.")
 #==============================================================================
 
@@ -168,17 +168,17 @@ class Link(EmbeddedDocument):
     to_input = EmbeddedReferenceField('IONode', 'inputs')
 
     def __eq__(self, other):
-        return (self.to_output == other.to_output and self.fr == other.fr and
-            self.fr_input == other.fr_input and self.to == other.to)
+        return (self.to_input == other.to_input and self.fr == other.fr and
+            self.fr_output == other.fr_output and self.to == other.to)
     def __hash__(self):
-        a = hash(self.to_output)
+        a = hash(self.to_input)
         b = hash(self.to)
-        c = hash(self.fr_input)
+        c = hash(self.fr_output)
         d = hash(self.fr)
         return a^b^c^d
 
     def __unicode__(self):
-        return "{0.fr}:{0.fr_input}->{0.to}:{0.to_output}".format(self)
+        return "{0.fr}:{0.fr_output}->{0.to}:{0.to_input}".format(self)
 
 
 
@@ -268,12 +268,12 @@ class IONode(Document):
     @property
     def linked_inputs(self):
         for link in self.inlinks:
-            yield link.fr_input
+            yield link.fr_output
 
     @property
     def linked_outputs(self):
         for link in self.outlinks:
-            yield link.to_output
+            yield link.to_input
 
     @property
     def free_inputs(self):
@@ -301,7 +301,7 @@ class IONode(Document):
         runinfo = RunInfo()
 
         for inlink in self.inlinks:
-            if inlink.fr_input.name in kwargs:
+            if inlink.fr_output.name in kwargs:
                 continue
             p = inlink.fr
             if (not p.executed or
@@ -411,12 +411,12 @@ class IOGraph(Document):
 
     def _link_valid(self, link):
         return (link.to in self.nodes and link.fr in self.nodes and
-            link.to_output in link.to.outputs and
-            link.fr_input in link.fr.inputs)
+            link.to_input in link.to.outputs and
+            link.fr_output in link.fr.inputs)
 
     def _init_link(self, link):
-        inp = link.fr_input
-        out = link.to_output
+        inp = link.fr_output
+        out = link.to_input
         def set_output(o, value):
             inp.value = value
 
@@ -434,7 +434,7 @@ class IOGraph(Document):
         if isinstance(out, string_types):
             out = to.outputdict[out]
 
-        link = Link(to_output = out, fr = fr, fr_input = inp, to=to)
+        link = Link(to_input = inp, fr = fr, fr_output = out, to=to)
 
         #Do this way to trigger _changed_fields-
         to.inlinks = to.inlinks + [link]
@@ -447,13 +447,13 @@ class IOGraph(Document):
             inp = to.inputdict[inp]
         if isinstance(out, string_types):
             out = to.outputdict[out]
-        link = Link(to = to, to_output = out, fr = fr, fr_input = inp)
+        link = Link(to = to, to_input = inp, fr = fr, fr_output = out)
         self.remove_link(link)
 
     def remove_link(self, link):
         to = link.to
         fr = link.fr
-        out = link.to_output
+        out = link.to_input
         out.on_trait_change(out.handler, name = 'value', remove = True)
         to.inlinks.remove(link)
         to.inlinks = list(to.inlinks)
