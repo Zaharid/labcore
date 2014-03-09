@@ -179,17 +179,19 @@ class MetaWithEmbedded(type):
         return super(MetaWithEmbedded, mcls).__new__(mcls, cls_name, bases, classdict)
 
 
-class SingleId(type):
+class SingleID(type):
     _id_prop = IDFIELD
     def __init__(mcls, class_name, bases, class_dict):
         mcls._iddict = weakref.WeakValueDictionary()
-        super(SingleId,mcls).__init__(class_name, bases, class_dict)
+        super(SingleID,mcls).__init__(class_name, bases, class_dict)
     def __call__(self, *args, **kwargs):
-        ins = super(SingleId,self).__call__(*args, **kwargs)
+        ins = super(SingleID,self).__call__(*args, **kwargs)
         uid = getattr(ins, ins.__class__._id_prop, None)
         if uid is not None:
             if uid in ins.__class__._iddict:
                 ins = ins.__class__._iddict[uid]
+                #This line is asking to create bugs.
+                ins.__init__(*args, **kwargs)
             else:
                 ins.__class__._iddict[uid] = ins
         return ins
@@ -215,7 +217,7 @@ class AbstractMeta(MetaWithEmbedded, AbstractTraitsDBMeta, MetaHasTraits):
 
 
 
-class DocumentMeta(AbstractMeta, type(mg.Document)):
+class DocumentMeta(SingleID, AbstractMeta, type(mg.Document)):
     pass
 
 class EmbeddedDocumentMeta(AbstractMeta, type(mg.EmbeddedDocument)):

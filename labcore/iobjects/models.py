@@ -384,8 +384,12 @@ class IOGraph(Document):
         for link in self.links:
             if self._link_valid(link):
                 self._init_link(link)
+                print("valid link: %s" % link)
             else:
+                print ("removing link: %s"%link)
                 self.remove_link(link)
+        import pdb;pdb.set_trace()
+
 
 
     name = fields.StringField()
@@ -454,11 +458,31 @@ class IOGraph(Document):
         to = link.to
         fr = link.fr
         out = link.fr_output
-        out.on_trait_change(out.handler, name = 'value', remove = True)
-        to.inlinks.remove(link)
-        to.inlinks = list(to.inlinks)
-        fr.outlinks.remove(link)
-        fr.outlinks = list(fr.outlinks)
+        if hasattr(out, 'handler'):
+            out.on_trait_change(out.handler, name = 'value', remove = True)
+
+        print ("fr is %s"%fr)
+        print ("id fr: %d" %id(fr))
+        print ("to is %s" % to)
+        print ("id to is : %s"% id(to))
+
+        print ("Removing this link %s" % link)
+        print ("To inlinks were %s"%to.inlinks)
+        l = list(to.inlinks)
+        l.remove(link)
+        to.inlinks = l
+        #to.inlinks = list(to.inlinks)
+        print("Now to links are: %s" % to.inlinks )
+
+        print ("fr outlinks were %s"%fr.outlinks)
+
+        l = list(fr.outlinks)
+        l.remove(link)
+        fr.outlinks = l
+        #fr.outlinks.remove(link)
+        #fr.outlinks = list(fr.outlinks)
+        print("Now fr links are: %s" % fr.outlinks )
+
 
     def draw_graph(self):
         G = self.build_graph()
