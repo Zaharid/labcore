@@ -9,9 +9,9 @@ from collections import Counter
 
 from labcore.iobjects.models import (IOGraph, IONode, Link, IOSimple, Input,
                                      Output,)
-from labcore.iobjects.tests.base import MongoTest
+from labcore.iobjects.tests.base import BaseTest
 
-class Test_base(MongoTest):
+class Test_base(BaseTest):
 
     def setUp(self):
         super(Test_base, self).setUp()

@@ -9,35 +9,29 @@ Created on Tue Feb 11 17:18:00 2014
 import itertools
 import copy
 
-import mongoengine as mg
-import networkx
-from mongoengine import fields
-
 from IPython.utils.py3compat import string_types
-from IPython.utils.traitlets import Bool, Any
+from IPython.utils.traitlets import Bool, Any, Unicode, Enum, Instance, Int
 from IPython.html import widgets
 from IPython.display import display
 
+import networkx
+
 from labcore.iobjects.utils import (add_child, widget_mapping, param_types,
                                      )
-from labcore.iobjects.mongotraits import (Document, EmbeddedDocument,
-    EmbeddedReferenceField)
+from labcore.mongotraits import (Document, EmbeddedDocument,
+    EmbeddedReference, Reference, TList, ObjectIdTrait)
 
 
 
 
 class Parameter(EmbeddedDocument):
 
-    meta = {'abstract':True}
+    name = Unicode()
+    param_type = Enum(default_value="String", values = param_types)
 
-    id = fields.ObjectIdField()
-
-    name = fields.StringField(required = True, max_length=256, unique=True)
-    param_type = fields.StringField(default="String", choices = param_types)
-
-    default = fields.DynamicField()
-    value = Any(db = True)
-
+    default = Any()
+    value = Any(db = False)
+    parent_ref = ObjectIdTrait(allow_none = True)
     def __eq__(self, other):
         return self.id == other.id
 
@@ -49,44 +43,29 @@ class Parameter(EmbeddedDocument):
     def __unicode__(self):
         return self.name
 
-
 INPUT_METHODS = ('constant', 'user_input', 'io_input')
 
 class Input(Parameter):
-    input_method = fields.StringField(choices=INPUT_METHODS,
-                                      default="user_input")
-
-    input_display = fields.StringField()
-    fr = fields.ReferenceField('IObject')
-    fr_output = fields.EmbeddedDocumentField('Output')
-
-
+    input_method = Enum(default_value="user_input",values=INPUT_METHODS)
 
 OUTPUT_TYPES = ('display', 'hidden')
 
 class Output(Parameter):
 
-    output_type = fields.StringField(choices=OUTPUT_TYPES,
-                                      default="display")
-    is_connected = fields.BooleanField(default = False)
-    to = fields.ReferenceField('IObject')
-    to_input = fields.EmbeddedDocumentField('Input')
+    output_type = Enum(default_value="display",values=OUTPUT_TYPES)
 
 
 class RunInfo(object):
     pass
 
 class IObject(Document):
+    name = Unicode()
+    inputs = TList(Instance(Input))
+    outputs = TList(Instance(Output))
 
-    meta = {'allow_inheritance': True}
-
-    name = fields.StringField(required = True, max_length=256)
-    inputs = fields.ListField(mg.EmbeddedDocumentField(Input))
-    outputs = fields.ListField(mg.EmbeddedDocumentField(Output))
-
-    address = fields.StringField()
+    address = Unicode()
     #executed = Bool(default_value = False, db=True)
-    log_output = fields.BooleanField(default = False)
+    log_output = Bool(default_value = False)
     #dispays = fields.ListField(mg.EmbeddedDocumentField(Parameter))
 
     def _paramdict(self, paramlist):
@@ -103,42 +82,6 @@ class IObject(Document):
     @property
     def display_outputs(self):
         return (out for out in self.outputs if out.output_type == 'display')
-
-
-
-
-    def bind_to_input(self, to, outputs, inputs):
-
-        if to in self.antecessors:
-            raise ValueError("Recursive binding is not allowed")
-
-        for (outp, inp) in zip(outputs, inputs):
-            if isinstance(outp, str):
-                outp = self.outputdict[outp]
-            if isinstance(inp, str):
-                inp = to.inputdict[inp]
-            inp.input_method = 'io_input'
-            inp.fr = self
-            outp.to = to
-            inp.fr_output = outp
-            outp.to_input = inp
-
-
-    def bind_to_input(self, fr, inputs , outputs):
-        if self in fr.antecessors:
-            raise ValueError("Recursive binding is not allowed")
-
-        for (outp, inp) in zip(outputs, inputs):
-            if isinstance(outp, str):
-                outp = fr.outputdict[outp]
-            if isinstance(inp, str):
-                inp = self.inputdict[inp]
-            inp.input_method = 'io_input'
-            inp.fr= fr
-            inp.fr_output = outp
-
-
-
 
     def __str__(self):
         return self.name
@@ -160,12 +103,11 @@ class Link(EmbeddedDocument):
 #             raise TypeError("All parameters of a link must be specified.")
 #==============================================================================
 
-    id = fields.ObjectIdField()
-
-    to = fields.ReferenceField('IONode')
-    fr_output = EmbeddedReferenceField('IONode', 'outputs')
-    fr = fields.ReferenceField('IONode')
-    to_input = EmbeddedReferenceField('IONode', 'inputs')
+    to = Reference(__name__+'IONode')
+    fr_output = EmbeddedReference(Output, document = __name__+'IONode',
+                                  trait_name='outputs')
+    fr = Reference(__name__+'IONode')
+    to_input = EmbeddedReference(Input, __name__+'IONode', 'inputs')
 
     def __eq__(self, other):
         return (self.to_input == other.to_input and self.fr == other.fr and
@@ -180,7 +122,10 @@ class Link(EmbeddedDocument):
     def __unicode__(self):
         return "{0.fr}:{0.fr_output}->{0.to}:{0.to_input}".format(self)
 
-
+class ParamMap(EmbeddedDocument):
+    def __getattribute__(self, attr):
+        try:
+            super(self, Embedded)
 
 class IONode(Document):
     def __init__(self, *args, **kwargs):
@@ -211,17 +156,17 @@ class IONode(Document):
             self.inputs.remove(inp)
 
     #id = fields.ObjectIdField()
-    iobject = fields.ReferenceField(IObject, required = True)
+    iobject = Reference(IObject)
 
-    inputs = fields.ListField(fields.EmbeddedDocumentField(Input))
-    outputs = fields.ListField(fields.EmbeddedDocumentField(Output))
+    inputs = TList(Instance(Input))
+    outputs = TList(Instance(Output))
 
-    inlinks = fields.ListField(fields.EmbeddedDocumentField(Link))
-    outlinks = fields.ListField(fields.EmbeddedDocumentField(Link))
+    inlinks = TList(Instance(Link))
+    outlinks = TList(Instance(Link))
 
-    gui_order = fields.IntField()
-    executed = Bool(db = True)
-    failed = Bool(db = True)
+    gui_order = Int()
+    executed = Bool()
+    failed = Bool()
 
     def _paramdict(self, paramlist):
         return {param.name : param for param in paramlist}
@@ -362,14 +307,6 @@ class IONode(Document):
     def __eq__(self, other):
         return self.id == other.id
 
-#==============================================================================
-#     def __getattribute__(self, attr):
-#         try:
-#             return object.__getattribute__(self, attr)
-#         except AttributeError:
-#             return getattr(self.iobject, attr)
-#==============================================================================
-
     def __unicode__(self):
         return self.iobject.name
     def __str__(self):
@@ -388,12 +325,9 @@ class IOGraph(Document):
             else:
                 print ("removing link: %s"%link)
                 self.remove_link(link)
-        import pdb;pdb.set_trace()
 
-
-
-    name = fields.StringField()
-    nodes = fields.ListField(fields.ReferenceField(IONode))
+    name = Unicode()
+    nodes = TList(Reference(IONode))
 
     @property
     def links(self):
