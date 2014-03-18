@@ -319,8 +319,7 @@ class IONode(Document):
             w.traits()['value']._allow_none = True
             traitlets.link((inp,'value'),(w,'value'))
 
-
-            def set_exec(w):
+            def set_exec(_w):
                 self.executed = False
             w.on_trait_change(set_exec, name = 'value')
             add_child(iocont,w)
@@ -329,6 +328,8 @@ class IONode(Document):
             w = widgets.HTMLWidget()
             out.widget = w
             add_child(iocont,w)
+            w.traits()['value']._allow_none = True
+            traitlets.link((out,'value'),(w,'value'))
 
         button = widgets.ButtonWidget(description = "Execute %s" % self.name)
         def _run(b):
@@ -449,75 +450,7 @@ class IOGraph(Document):
         #TODO Improve this
         return iter(self.nodes)
 
-
-class IPIObject(IObject):
-
-    def _executed_changed(self):
-        if self.executed:
-            self.widget.add_class('executed')
-        else:
-            self.widget.remove_class('executed')
-
-    def run(self):
-        super(IPIObject,self).run()
-        for out in self.display_outputs:
-            out.widget.value = "<strong>%s</strong>: %r" %(out.name, out.value)
-
-
-    def _add_classes(self, dic):
-        for item in dic:
-            item.add_class(dic[item])
-
-
-    def make_control(self):
-        control_container = widgets.ContainerWidget()
-        css_classes = {control_container: 'control-container'}
-
-        add_child(control_container,
-                  widgets.LatexWidget(value = "IObject Widget"))
-
-
-        for io in itertools.chain([self],self.antecessors):
-
-            io._add_form(control_container, css_classes)
-
-
-        display(control_container)
-        self._add_classes(css_classes)
-        self.control_container = control_container
-        return control_container
-
-    def _add_form(self, control_container, css_classes):
-        iocont =  widgets.ContainerWidget()
-        css_classes[iocont] = ('iobject-container')
-        add_child(iocont, widgets.LatexWidget(value = self.name))
-        add_child(control_container, iocont)
-        self.widget = iocont
-        for inp in self.free_inputs:
-
-            w = widgets.TextWidget(description = inp.name, value = inp.value,
-                                   default = inp.default)
-            inp.widget = w
-
-            def set_exec(w):
-                self.executed = False
-            w.on_trait_change(set_exec, name = 'value')
-            add_child(iocont,w)
-
-        for out in self.display_outputs:
-            w = widgets.HTMLWidget()
-            out.widget = w
-            add_child(iocont,w)
-
-        button = widgets.ButtonWidget(description = "Execute %s" % self.name)
-
-        def _run(b):
-            self.run()
-        button.on_click(_run)
-        add_child(iocont, button)
-
-
-class IOSimple(IPIObject):
+class IOSimple(IObject):
 
     def execute(self, **kwargs):
         results = {}
