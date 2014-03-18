@@ -10,6 +10,7 @@ import itertools
 import copy
 
 from IPython.utils.py3compat import string_types
+from IPython.utils import traitlets
 from IPython.utils.traitlets import Bool, Any, Unicode, Enum, Instance, Int
 from IPython.html import widgets
 from IPython.display import display
@@ -103,11 +104,11 @@ class Link(EmbeddedDocument):
 #             raise TypeError("All parameters of a link must be specified.")
 #==============================================================================
 
-    to = Reference(__name__+'IONode')
-    fr_output = EmbeddedReference(Output, document = __name__+'IONode',
+    to = Reference(__name__+'.IONode')
+    fr_output = EmbeddedReference(Output, document = __name__+'.IONode',
                                   trait_name='outputs')
-    fr = Reference(__name__+'IONode')
-    to_input = EmbeddedReference(Input, __name__+'IONode', 'inputs')
+    fr = Reference(__name__+'.IONode')
+    to_input = EmbeddedReference(Input, __name__+'.IONode', 'inputs')
 
     def __eq__(self, other):
         return (self.to_input == other.to_input and self.fr == other.fr and
@@ -122,10 +123,10 @@ class Link(EmbeddedDocument):
     def __unicode__(self):
         return "{0.fr}:{0.fr_output}->{0.to}:{0.to_input}".format(self)
 
-class ParamMap(EmbeddedDocument):
-    def __getattribute__(self, attr):
-        try:
-            super(self, Embedded)
+class OutputMirror(Output):
+    pass
+class InputMirror(Input):
+    pass
 
 class IONode(Document):
     def __init__(self, *args, **kwargs):
@@ -136,6 +137,9 @@ class IONode(Document):
         if not self.iobject:
             raise TypeError("An IObject is needed to initialize a node.")
 
+        if not self.name:
+            self.name = self.iobject.name
+
         obj_outs = set(self.iobject.outputs)
         obj_ins = set(self.iobject.inputs)
         my_outs = set(self.outputs)
@@ -144,22 +148,35 @@ class IONode(Document):
         new_outs = obj_outs - my_outs
         new_ins = obj_ins - my_ins
         for out in new_outs:
-            self.outputs.append(copy.copy(out))
+            myout = OutputMirror(**out._trait_values)
+            self.outputs = self.outputs + (myout,)
+
         for inp in new_ins:
-            self.inputs.append(copy.copy(inp))
+            myinp = InputMirror(**inp._trait_values)
+            self.inputs = self.inputs + (myinp,)
+
+        obj_outs = set(self.iobject.outputs)
+        obj_ins = set(self.iobject.inputs)
+        my_outs = set(self.outputs)
+        my_ins = set(self.inputs)
 
         dead_outs = my_outs - obj_outs
         dead_ins = my_ins - obj_ins
         for out in dead_outs:
-            self.outputs.remove(out)
+            newouts = list(self.outputs)
+            newouts.remove(out)
+            self.outputs = newouts
         for inp in dead_ins:
-            self.inputs.remove(inp)
+            newins = list(self.inputs)
+            newins.remove(inp)
+            self.inputs = newins
 
     #id = fields.ObjectIdField()
     iobject = Reference(IObject)
+    name = Unicode()
 
-    inputs = TList(Instance(Input))
-    outputs = TList(Instance(Output))
+    inputs = TList(Instance(InputMirror))
+    outputs = TList(Instance(OutputMirror))
 
     inlinks = TList(Instance(Link))
     outlinks = TList(Instance(Link))
@@ -211,6 +228,14 @@ class IONode(Document):
             for na in a._related(existing, what):
                 yield na
     @property
+    def input_mapping(self):
+        return {link.to_input:link for link in self.inlinks}
+
+    @property
+    def output_mapping(self):
+        return {link.fr_output:link for link in self.outlinks}
+
+    @property
     def linked_inputs(self):
         for link in self.inlinks:
             yield link.to_input
@@ -250,29 +275,29 @@ class IONode(Document):
                 continue
             p = inlink.fr
             if (not p.executed or
-                any(not ant.executed for ant in p.antecessors)):
+                any(not ant.executed for ant in p.ancestors)):
 
                 p.run()
 
         for inp in self.inputs:
             if inp.name in kwargs:
                 continue
-            elif inp.input_method == 'user_input':
-                inp.value = inp.widget.value
             params[inp.name] = inp.value
         try:
             results = self.iobject.execute(**params)
+
         except Exception as e:
             runinfo.success = False
             runinfo.error = e
             self.executed = False
             self.failed = True
+
         else:
             for out in self.outputs:
                 last_value = out.value
                 new_value = results[out.name]
-                if last_value != new_value and out.is_connected:
-                    out.to.executed = False
+                if last_value != new_value and out in self.output_mapping:
+                     self.output_mapping[out].to.executed = False
                 out.value = new_value
 
             self.executed = True
@@ -284,16 +309,23 @@ class IONode(Document):
         css_classes[iocont] = ('iobject-container')
         add_child(iocont, widgets.LatexWidget(value = self.name))
         for inp in self.free_inputs:
-            w = widgets.TextWidget(description = inp.name, value = inp.value,
+            #We have to filter none kw...
+            allkw = dict(description = inp.name, value = inp.value,
                        default = inp.default)
+            kw = {key:value for (key,value) in allkw.items()
+                    if value is not None}
+            w = widgets.TextWidget(**kw)
             inp.widget = w
+            w.traits()['value']._allow_none = True
+            traitlets.link((inp,'value'),(w,'value'))
+
 
             def set_exec(w):
                 self.executed = False
             w.on_trait_change(set_exec, name = 'value')
             add_child(iocont,w)
 
-        for out in self.display_outputs:
+        for out in self.free_outputs:
             w = widgets.HTMLWidget()
             out.widget = w
             add_child(iocont,w)
@@ -304,8 +336,8 @@ class IONode(Document):
         button.on_click(_run)
         add_child(iocont, button)
 
-    def __eq__(self, other):
-        return self.id == other.id
+        self.widget = iocont
+        return iocont
 
     def __unicode__(self):
         return self.iobject.name
@@ -321,9 +353,7 @@ class IOGraph(Document):
         for link in self.links:
             if self._link_valid(link):
                 self._init_link(link)
-                print("valid link: %s" % link)
             else:
-                print ("removing link: %s"%link)
                 self.remove_link(link)
 
     name = Unicode()
@@ -339,7 +369,8 @@ class IOGraph(Document):
         G = networkx.MultiDiGraph()
         G.add_nodes_from(self.nodes)
         for node in self.nodes:
-            G.add_edges_from((link.fr, node, {'link':link}) for link in node.inlinks)
+            G.add_edges_from((link.fr, node, {'link':link})
+                    for link in node.inlinks)
         return G
 
     @property
@@ -375,8 +406,8 @@ class IOGraph(Document):
         link = Link(to_input = inp, fr = fr, fr_output = out, to=to)
 
         #Do this way to trigger _changed_fields-
-        to.inlinks = to.inlinks + [link]
-        fr.outlinks = fr.outlinks + [link]
+        to.inlinks = to.inlinks + (link,)
+        fr.outlinks = fr.outlinks + (link,)
 
         self._init_link(link)
 
@@ -394,29 +425,12 @@ class IOGraph(Document):
         out = link.fr_output
         if hasattr(out, 'handler'):
             out.on_trait_change(out.handler, name = 'value', remove = True)
-
-        print ("fr is %s"%fr)
-        print ("id fr: %d" %id(fr))
-        print ("to is %s" % to)
-        print ("id to is : %s"% id(to))
-
-        print ("Removing this link %s" % link)
-        print ("To inlinks were %s"%to.inlinks)
         l = list(to.inlinks)
         l.remove(link)
         to.inlinks = l
-        #to.inlinks = list(to.inlinks)
-        print("Now to links are: %s" % to.inlinks )
-
-        print ("fr outlinks were %s"%fr.outlinks)
-
         l = list(fr.outlinks)
         l.remove(link)
         fr.outlinks = l
-        #fr.outlinks.remove(link)
-        #fr.outlinks = list(fr.outlinks)
-        print("Now fr links are: %s" % fr.outlinks )
-
 
     def draw_graph(self):
         G = self.build_graph()
@@ -427,6 +441,9 @@ class IOGraph(Document):
         css_classes = {control_container: 'control-container'}
         for node in self.sorted_iterate():
             add_child(control_container, node.make_form(css_classes))
+        display(control_container)
+        for (widget, klass) in css_classes.items():
+            widget.add_class(klass)
 
     def sorted_iterate(self):
         #TODO Improve this

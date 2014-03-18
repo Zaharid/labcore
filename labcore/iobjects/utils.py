@@ -20,7 +20,7 @@ def remove_from_list(l, elem):
     l = list(l)
 
 def add_child(container, child):
-    container.children = container.children + [child]
+    container.children = container.children + (child,)
 
 
 class EvaluableWidget(widgets.TextWidget):
