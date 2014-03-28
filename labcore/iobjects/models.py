@@ -32,7 +32,7 @@ class Parameter(EmbeddedDocument):
 
     default = Any()
     value = Any(db = False)
-    parent_ref = ObjectIdTrait(allow_none = True)
+    #parent_ref = ObjectIdTrait(allow_none = True)
     def __eq__(self, other):
         return self.id == other.id
 
@@ -276,7 +276,6 @@ class IONode(Document):
             p = inlink.fr
             if (not p.executed or
                 any(not ant.executed for ant in p.ancestors)):
-
                 p.run()
 
         for inp in self.inputs:
@@ -300,6 +299,9 @@ class IONode(Document):
                      self.output_mapping[out].to.executed = False
                 out.value = new_value
 
+            for inp in self.inputs:
+                inp.default = inp.value
+
             self.executed = True
 
         return results
@@ -307,7 +309,7 @@ class IONode(Document):
     def make_form(self, css_classes):
         iocont =  widgets.ContainerWidget()
         css_classes[iocont] = ('iobject-container')
-        add_child(iocont, widgets.LatexWidget(value = self.name))
+        add_child(iocont, widgets.HTMLWidget(value = "<h3>%s</h3>"%self.name))
         for inp in self.free_inputs:
             #We have to filter none kw...
             allkw = dict(description = inp.name, value = inp.value,
@@ -338,6 +340,7 @@ class IONode(Document):
         add_child(iocont, button)
 
         self.widget = iocont
+        self._executed_changed()
         return iocont
 
     def __unicode__(self):
@@ -439,16 +442,25 @@ class IOGraph(Document):
 
     def make_control(self):
         control_container = widgets.ContainerWidget()
+        add_child(control_container, widgets.HTMLWidget(
+                    value="<h2>%s</h2>"%self.name))
         css_classes = {control_container: 'control-container'}
         for node in self.sorted_iterate():
             add_child(control_container, node.make_form(css_classes))
         display(control_container)
         for (widget, klass) in css_classes.items():
+            if isinstance(widget, widgets.ContainerWidget):
+                widget.remove_class("vbox")
             widget.add_class(klass)
 
     def sorted_iterate(self):
         #TODO Improve this
         return iter(self.nodes)
+
+    def save_all(self):
+        for node in self.nodes:
+            node.save()
+            self.save()
 
 class IOSimple(IObject):
 
