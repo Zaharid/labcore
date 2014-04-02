@@ -20,7 +20,7 @@ import networkx
 from labcore.iobjects.utils import (add_child, widget_mapping, param_types,
                                      )
 from labcore.mongotraits import (Document, EmbeddedDocument,
-    EmbeddedReference, Reference, TList, ObjectIdTrait)
+    EmbeddedReference, Reference, TList)
 
 
 
@@ -32,6 +32,7 @@ class Parameter(EmbeddedDocument):
 
     default = Any()
     value = Any(db = False)
+    description = Unicode()
     #parent_ref = ObjectIdTrait(allow_none = True)
     def __eq__(self, other):
         return self.id == other.id
