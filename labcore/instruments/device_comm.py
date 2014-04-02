@@ -6,21 +6,20 @@ Created on Thu Nov 21 16:49:36 2013
 """
 
 
-from django.core.exceptions import ObjectDoesNotExist
-
 from device_adapters import TestDevice, USBDevice
+from labcore.mongotraits.documents import MongoTraitsError, Q
 
 
 
-active_interfaces = ( 
+active_interfaces = (
                      TestDevice,
                      USBDevice,
             )
-            
+
 def test_mode():
     global active_interfaces
     active_interfaces = (TestDevice,)
-            
+
 active_devices = None
 
 class DevObj(object):
@@ -30,7 +29,7 @@ class DevObj(object):
     def __repr__(self):
         return self.device.__repr__()
 
-def find_all():    
+def find_all():
     if active_devices is None:
         refresh_devices()
     return active_devices
@@ -40,8 +39,8 @@ def refresh_devices():
     active_devices = {}
     for iface in active_interfaces:
         for name, product, device in iface.get_instruments():
-            
-            
+
+
             active_devices[name] = (active_devices.get(name, []) +
                                     [DevObj(product, device)])
 
@@ -53,12 +52,12 @@ def get_device(model, product_id):
     try:
         item = next(x for x in l if x.product_id == product_id)
     except StopIteration:
-        raise ValueError("The '%s' device of type %s is not found" 
+        raise ValueError("The '%s' device of type %s is not found"
                             % (product_id, model))
     return item
-    
-    
-                
+
+
+
 def next_not_controlled(name):
     l = find_all()[name]
     for devobj in l:
@@ -74,38 +73,38 @@ def associate_known():
     instruments = []
     for devname, devlist in find_all().items():
         for devobj in devlist:
-            try:            
-                ins = models.Instrument.objects.get(device_id = devname)
+            try:
+                ins = models.Instrument.find_one(device_id = devname)
                 ins.associate(devobj.device)
-                instruments.append(ins)            
-            except ObjectDoesNotExist:
+                instruments.append(ins)
+            except MongoTraitsError:
                 pass
-    
+
     return instruments
-    
+
 def create_instrument(name, base_instrument, device_id, devobj = None):
     """Creates an instrument object from an active device and initializes it
     so that it can emit commands."""
     from instruments import models as m
     if isinstance(base_instrument, str):
         base_instrument = m.BaseInstrument.objects.get(name = base_instrument)
-    ins = m.Instrument.objects.create(name = name, 
+    ins = m.Instrument.objects.create(name = name,
                                      base_instrument = base_instrument, )
     if devobj is None:
         devobj = next_not_controlled(device_id)
     ins.associate(devobj.device)
     return ins
-    
+
 def find_unknown():
     from . import models
     alldevs = find_all()
-    unknown = {k: v for k,v in alldevs.items() 
-        if not models.Instrument.objects.filter(device_id = k).exists()}
+    unknown = {k: v for k,v in alldevs.items()
+        if not models.Instrument.exists(Q(device_id = k))}
     return unknown
 
 def load_instrument(name = None, **kwargs):
     from . import models
-    ins = models.Instrument.objects.get(name = name, **kwargs)
+    ins = models.Instrument.find_one(name = name, **kwargs)
     ins.prepare()
     return ins
-    
+

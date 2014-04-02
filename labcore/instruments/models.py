@@ -41,10 +41,11 @@ class AbstractInstrument(documents.Document):
     name = t.Unicode()
 #    base_instrument = models.ForeignKey('BaseInstrument',
 #                                        null = True, blank = True)
-    base_instrument = documents.Reference(__name__+'BaseInstrument')
+    base_instrument = documents.Reference(__name__+'.BaseInstrument')
     #commands = generic.GenericRelation('Command')
-    commands = t.List(documents.Reference(__name__+'Command'))
+    commands = t.List(documents.Reference(__name__+'.Command'))
 
+    @property
     def _command_names(self):
         return {command.name : command for command in self.commands}
 
@@ -78,6 +79,7 @@ class AbstractInstrument(documents.Document):
                             command_string = command.command_string,
                             command_type = command.command_type,
                             instrument = self)
+                   self.commands = self.commands + [command,]
                    newcommand.save()
 
 
@@ -89,7 +91,7 @@ class AbstractInstrument(documents.Document):
 #@utils.autoconnect
 class BaseInstrument(AbstractInstrument):
     def save(self, *args, **kwargs):
-        super(self,BaseInstrument).save(*args, **kwargs)
+        super(BaseInstrument, self).save(*args, **kwargs)
         self.load_from_base()
 
 #@utils.autoconnect
@@ -122,7 +124,7 @@ class Instrument(AbstractInstrument):
             self.make_command_function(command)
 
     def save(self, *args, **kwargs):
-        super(self,BaseInstrument).save(*args, **kwargs)
+        super(Instrument, self).save(*args, **kwargs)
         self.load_from_base()
 
 
@@ -196,7 +198,7 @@ class Command(iobjs.IObject):
         bins = self.instrument.base_instrument
         if bins:
             try:
-                self._base_command = bins._command_names(self.name)
+                self._base_command = bins._command_names[self.name]
                 return self._base_command
             except  KeyError:
                 return None
@@ -206,7 +208,7 @@ class Command(iobjs.IObject):
     #content_type = models.ForeignKey(ContentType)
     #object_id = models.PositiveIntegerField()
     #instrument = generic.GenericForeignKey()
-    instrument = documents.Reference(Instrument)
+    instrument = documents.Reference(AbstractInstrument)
 
 
     @property
@@ -247,7 +249,7 @@ class Command(iobjs.IObject):
                     param = iobjs.Input(name=param_name)
                 if param_name in self._defaults:
                     param.default = self._defaults[param_name]
-                params += [param_name]
+                params += [param]
         self.inputs = params
 
 
@@ -307,16 +309,16 @@ class Command(iobjs.IObject):
     def pre_save(self):
         if not self.command_type:
             if self.command_string.endswith('?'):
-                self.command_type = "A"
+                self.command_type = "Ask"
             else:
-                self.command_type = "W"
+                self.command_type = "Write"
         self.make_base()
         if self._description is not None:
             self.description = self._description
 
     def make_base(self):
         bins = self.instrument.base_instrument
-        if bins and not self.name in bins.commands._command_names:
+        if bins and not self.name in bins._command_names:
             newcommand = Command(
                             name = self.name,
                             command_string = self.command_string,
@@ -331,7 +333,7 @@ class Command(iobjs.IObject):
 
     def save(self, *args ,**kwargs):
         self.pre_save()
-        self.save(*args, **kwargs)
+        super(Command,self).save(*args, **kwargs)
         self.post_save()
 
     def __unicode__(self):
