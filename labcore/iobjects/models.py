@@ -458,9 +458,7 @@ class IOGraph(Document):
         return iter(self.nodes)
 
     def save_all(self):
-        for node in self.nodes:
-            node.save()
-            self.save()
+        self.save(cascade=True)
 
 class IOSimple(IObject):
 
