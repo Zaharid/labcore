@@ -76,16 +76,16 @@ class IObjectBase(Document):
     log_output = Bool(default_value = False)
     #dispays = fields.ListField(mg.EmbeddedDocumentField(Parameter))
 
-    def _paramdict(self, paramlist):
+    def FParamdict(self, paramlist):
         return {param.name : param for param in paramlist}
 
     @property
     def inputdict(self):
-        return self._paramdict(self.inputs)
+        return self.FParamdict(self.inputs)
 
     @property
     def outputdict(self):
-        return self._paramdict(self.outputs)
+        return self.FParamdict(self.outputs)
 
     @property
     def display_outputs(self):
@@ -124,24 +124,52 @@ class IObject(IObjectBase):
             "in order to execute it")
         return self.function(*args, **kwargs)
 
-if PY3:       
-    def iobject(f, *args, **kwargs):
+if PY3:
+    def _map_param(param, cls):
+        FParam = inspect.Parameter
+        bad_kinds = (FParam.VAR_KEYWORD, FParam.VAR_POSITIONAL)
+        if param.kind in bad_kinds:
+            raise IObjectError("IObjects cannot have variable arguments"\
+            " as inputs.")
+        if param.annotation is not FParam.empty:
+            param_type = param.annotation
+        else:
+            param_type = 'String'
+        if param.default is not FParam.empty:
+            default = param.default
+        else:
+            default = None
+        return cls(name = param.name, param_type=param_type, default=default)
+    
+    def _map_output(output):
+        if not (isinstance(output,tuple) and len(output)==2):
+            raise ValueError("Return annotation must be of the form"\
+            "('name',type) or a list of such values")
+        name, param_type = output
+        param_type = str(param_type)
+        return Output(name = name, param_type=param_type)
+        
+    def iobject(f, signature = None, *args, **kwargs):
         frm = inspect.stack()[1]
         mod = inspect.getmodule(frm[0])
         mname = mod.__name__ + '.' if mod is not None else ''
         function_path = "%s%s"%(mname,f.__qualname__)
-        sig = inspect.signature(f)
-        inputs = []
-        _Param = inspect.Parameter
-        
-        for param in sig:
-            bad_kinds = (_Param.VAR_KEYWORD, _Param.VAR_POSITIONAL)
-            if param.kind in bad_kinds:
-                raise IObjectError("IObjects cannot have variable arguments"\
-                " as inputs.")
-            if param.annotation is not inspect._empty:
+        if signature is None:
+            signature = inspect.signature(f)
+        inputs = [_map_param(param, Input)
+            for param in signature.parameters.values()]
+        ret = signature.return_annotation
+        if ret is not inspect._empty:
+            if isinstance(ret, list):
+                outputs = [_map_output(output) for output in ret]
+            else:
+                outputs = [_map_output(ret)]
+        else:
+            outputs = [Output(name="output")]
+        return IObject(name = f.__name__, inputs = inputs, outputs=outputs,
+                       function_path = function_path)
                 
-            inputs.append(Input(name = param.name, ))
+        
                 
                 
 
@@ -236,16 +264,16 @@ class IONode(Document):
     executed = Bool()
     failed = Bool()
 
-    def _paramdict(self, paramlist):
+    def FParamdict(self, paramlist):
         return {param.name : param for param in paramlist}
 
     @property
     def inputdict(self):
-        return self._paramdict(self.inputs)
+        return self.FParamdict(self.inputs)
 
     @property
     def outputdict(self):
-        return self._paramdict(self.outputs)
+        return self.FParamdict(self.outputs)
 
     @property
     def parents(self):
