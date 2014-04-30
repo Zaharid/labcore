@@ -8,10 +8,13 @@ Created on Tue Feb 11 17:18:00 2014
 
 import itertools
 import copy
+import inspect
 
-from IPython.utils.py3compat import string_types
+from IPython.utils.py3compat import string_types, PY3
+from IPython.utils.importstring import import_item
 from IPython.utils import traitlets
-from IPython.utils.traitlets import Bool, Any, Unicode, Enum, Instance, Int
+from IPython.utils.traitlets import (Bool, Any, Unicode, Enum, Instance, Int,
+                                     )
 from IPython.html import widgets
 from IPython.display import display
 
@@ -22,6 +25,9 @@ from labcore.iobjects.utils import (add_child, widget_mapping, param_types,
 from labcore.mongotraits import (Document, EmbeddedDocument,
     EmbeddedReference, Reference, TList)
 
+
+class IObjectError(Exception):
+    pass
 
 
 
@@ -60,12 +66,12 @@ class Output(Parameter):
 class RunInfo(object):
     pass
 
-class IObject(Document):
+class IObjectBase(Document):
     name = Unicode()
     inputs = TList(Instance(Input))
     outputs = TList(Instance(Output))
 
-    address = Unicode()
+    runaddress = Unicode()
     #executed = Bool(default_value = False, db=True)
     log_output = Bool(default_value = False)
     #dispays = fields.ListField(mg.EmbeddedDocumentField(Parameter))
@@ -94,6 +100,50 @@ class IObject(Document):
         return self.name
 
 default_spec = ()
+
+class IObject(IObjectBase):
+    function_path = Unicode()
+    def __init__(self, *args, **kwargs):
+        super(IObject,self).__init__(*args,**kwargs)
+        if self.function_path:
+            try:
+                self.function = import_item(self.function_path)
+            except ImportError:
+                try:
+                    self.function = globals()[self.function_path]
+                except KeyError:
+                    raise ImportError(("The function %s was not found"\
+                    "in the current context") % self.function_path)
+        else:
+            self.function = None
+            
+            
+    def __call__(self, *args, **kwargs):
+        if self.function is None:
+            raise IObjectError("You must define a function for this object "  \
+            "in order to execute it")
+        return self.function(*args, **kwargs)
+
+if PY3:       
+    def iobject(f, *args, **kwargs):
+        frm = inspect.stack()[1]
+        mod = inspect.getmodule(frm[0])
+        mname = mod.__name__ + '.' if mod is not None else ''
+        function_path = "%s%s"%(mname,f.__qualname__)
+        sig = inspect.signature(f)
+        inputs = []
+        _Param = inspect.Parameter
+        
+        for param in sig:
+            bad_kinds = (_Param.VAR_KEYWORD, _Param.VAR_POSITIONAL)
+            if param.kind in bad_kinds:
+                raise IObjectError("IObjects cannot have variable arguments"\
+                " as inputs.")
+            if param.annotation is not inspect._empty:
+                
+            inputs.append(Input(name = param.name, ))
+                
+                
 
 
 class Link(EmbeddedDocument):
@@ -284,7 +334,7 @@ class IONode(Document):
                 continue
             params[inp.name] = inp.value
         try:
-            results = self.iobject.execute(**params)
+            results = self.iobject.__call__(**params)
 
         except Exception as e:
             runinfo.success = False
@@ -463,7 +513,7 @@ class IOGraph(Document):
 
 class IOSimple(IObject):
 
-    def execute(self, **kwargs):
+    def __call__(self, **kwargs):
         results = {}
         keys = iter(kwargs)
         for out in self.outputs:
