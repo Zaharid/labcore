@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>ZigZah-lab: {{report.title }}</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css">
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+<script type="text/javascript"
+src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<script type="text/javascript"
+src="http://netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js">
+</script>
+<script type="text/x-mathjax-config">
+MathJax.Hub.Config({
+		     tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}
+	       });
+</script>
+<link rel = "stylesheet" href="static/css/report_style.css" >
+
+</head>
+<body data-spy="scroll" data-target="#navig">
+<header class= "page-header">
+   <h1>{{ report.title  }}</h1>
+</header>
+<div class="container" >
+
+   <div class = "col-lg-2">
+      <nav id="navig" class="bs-sidebar hidden-print hidden-phone affix" role="complementary">
+	 <ul class = "nav nav-stacked nav-tabs bs-sidenav">
+	    {% for result in report.results %}
+	    <li><a href=#{{ loop.index }}{{ result.smalltitle  }}>{{ result.smalltitle }}</a></li>
+	    {% endfor %}
+	 </ul>
+      </nav>
+   </div>
+   <main class = "col-lg-10" role = "main">
+
+   {% for result in report.results %} 
+   <section class="row" >
+      <h2 id="{{ loop.index }}{{ result.smalltitle }}">{{ result.title }} </h2>
+      {{ result._result_html()  }}
+   </section>
+   {% endfor %}
+
+   </main>
+   <div class="col-lg-2">
+   </div>
+   <div class="col-lg-10">
+      <footer class="footer hidden-print">
+	 Generado por ZigZah-lab.
+      </footer>
+   </div>
+
+
+</div>
+
+<script>
+$(document).ready(function(){
+      $(".showhidebutton").each(function(){
+	 ele = $(this).closest(".showhide").find(".showhidecontent");
+	 if (ele.is(":visible")){
+	 $(this).html("Ocultar");
+	 }else{
+	 $(this).html("Mostrar");
+	 }
+
+	 });
+
+      $(".showhidebutton").click(function(event){
+	 ele = $(event.target).closest(".showhide").find(".showhidecontent");
+	 ele.toggle();
+	 if (ele.is(":visible")){
+	 $(event.target).html("Ocultar");
+	 }else{
+	 $(event.target).html("Mostrar");
+	 }
+
+
+
+	 $('[data-spy="scroll"]').each(function () {
+	    var $spy = $(this).scrollspy('refresh')
+	    });		  
+
+
+	 });
+});
+</script>
+</body>
+</html>
