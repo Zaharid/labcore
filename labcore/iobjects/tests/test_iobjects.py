@@ -96,6 +96,19 @@ class Test_base(BaseTest):
         g.unbind( ions[2], 'o1', ions[0], 'i1')
 
         self.assertEqual(g.build_graph().edges(),[])
+    
+    def h(a,b):
+        return a-b
+    
+#==============================================================================
+#     @iobject
+#     def f(x,y):
+#         return x+y
+#==============================================================================
+    
+    def test_decorator(self):
+        pass
+        #self.assertEqual(self.f(2,2),4)
 
 
 
