@@ -76,16 +76,16 @@ class IObjectBase(Document):
     log_output = Bool(default_value = False)
     #dispays = fields.ListField(mg.EmbeddedDocumentField(Parameter))
 
-    def FParamdict(self, paramlist):
+    def _paramdict(self, paramlist):
         return {param.name : param for param in paramlist}
 
     @property
     def inputdict(self):
-        return self.FParamdict(self.inputs)
+        return self._paramdict(self.inputs)
 
     @property
     def outputdict(self):
-        return self.FParamdict(self.outputs)
+        return self._paramdict(self.outputs)
 
     @property
     def display_outputs(self):
