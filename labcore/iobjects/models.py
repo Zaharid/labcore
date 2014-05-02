@@ -66,12 +66,11 @@ class Output(Parameter):
 class RunInfo(object):
     pass
 
-class IObjectBase(Document):
+class IObjectBase(traitlets.HasTraits):
     name = Unicode()
     inputs = TList(Instance(Input))
     outputs = TList(Instance(Output))
 
-    runaddress = Unicode()
     #executed = Bool(default_value = False, db=True)
     log_output = Bool(default_value = False)
     #dispays = fields.ListField(mg.EmbeddedDocumentField(Parameter))
@@ -103,26 +102,24 @@ default_spec = ()
 
 class IObject(IObjectBase):
     function_path = Unicode()
-    def __init__(self, *args, **kwargs):
+    _iobjects = {}
+    def __init__(self, function, *args, **kwargs):
         super(IObject,self).__init__(*args,**kwargs)
-        if self.function_path:
-            try:
-                self.function = import_item(self.function_path)
-            except ImportError:
-                try:
-                    self.function = globals()[self.function_path]
-                except KeyError:
-                    raise ImportError(("The function %s was not found"\
-                    "in the current context") % self.function_path)
+        self.function = function
+        if not self.function_path:
+            raise ValueError("A function path must be defined")
         else:
-            self.function = None
-            
-            
+            self.__class__._iobjects[self.function_path] = self
+
+
     def __call__(self, *args, **kwargs):
-        if self.function is None:
-            raise IObjectError("You must define a function for this object "  \
-            "in order to execute it")
         return self.function(*args, **kwargs)
+
+    def __doc__(self):
+        doc = super(IObject, self).__doc__()
+        doc += ("\nThe documentation for the original function is:\n"+
+        self.function.__doc__())
+
 
 if PY3:
     def _map_param(param, cls):
@@ -140,7 +137,7 @@ if PY3:
         else:
             default = None
         return cls(name = param.name, param_type=param_type, default=default)
-    
+
     def _map_output(output):
         if not (isinstance(output,tuple) and len(output)==2):
             raise ValueError("Return annotation must be of the form"\
@@ -148,12 +145,12 @@ if PY3:
         name, param_type = output
         param_type = str(param_type)
         return Output(name = name, param_type=param_type)
-        
+
     def iobject(f, signature = None, *args, **kwargs):
         frm = inspect.stack()[1]
         mod = inspect.getmodule(frm[0])
-        mname = mod.__name__ + '.' if mod is not None else ''
-        function_path = "%s%s"%(mname,f.__qualname__)
+        modname = mod.__name__ + '.' if mod is not None else ''
+        function_path = "%s%s"%(modname, f.__qualname__)
         if signature is None:
             signature = inspect.signature(f)
         inputs = [_map_param(param, Input)
@@ -166,12 +163,12 @@ if PY3:
                 outputs = [_map_output(ret)]
         else:
             outputs = [Output(name="output")]
-        return IObject(name = f.__name__, inputs = inputs, outputs=outputs,
-                       function_path = function_path)
-                
-        
-                
-                
+        return IObject(function = f, name = f.__name__, inputs = inputs,
+                       outputs=outputs, function_path = function_path)
+
+
+
+
 
 
 class Link(EmbeddedDocument):
@@ -251,7 +248,19 @@ class IONode(Document):
             self.inputs = newins
 
     #id = fields.ObjectIdField()
-    iobject = Reference(IObject)
+    _iobject = Instance(IObject, db=False)
+    _iobject_key = Unicode()
+
+    @property
+    def iobject(self):
+        if not self._iobject:
+            self._iobject = IObject._iobjects[self.iobject_key]
+        return self._iobject
+
+    @iobject.set
+    def iobject(self, obj):
+        self._iobject = obj
+        self._iobject_key = obj.function_path
     name = Unicode()
 
     inputs = TList(Instance(InputMirror))
