@@ -27,7 +27,7 @@ class Test_base(BaseTest):
             o2 = Output(name = "o2")
             io.inputs = [i1,i2]
             io.outputs = [o1,o2]
-            io.save()
+            #io.save()
             ion = IONode(io)
             ions += [ion]
 

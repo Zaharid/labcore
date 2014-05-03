@@ -9,6 +9,7 @@ Created on Tue Feb 11 17:18:00 2014
 import itertools
 import copy
 import inspect
+import weakref
 
 from IPython.utils.py3compat import string_types, PY3
 from IPython.utils.importstring import import_item
@@ -103,14 +104,20 @@ default_spec = ()
 class IObject(IObjectBase):
     function_path = Unicode()
     _simple_output = Bool(default_value = False)
-    _iobjects = {}
+    _iobjects = weakref.WeakValueDictionary()
     def __init__(self, function, *args, **kwargs):
         super(IObject,self).__init__(*args,**kwargs)
         self.function = function
-        if not self.function_path:
-            raise ValueError("A function path must be defined")
-        else:
-            self.__class__._iobjects[self.function_path] = self
+        self.function_path = self._get_function_path(function)
+        self.__class__._iobjects[self.function_path] = self
+            
+    
+    @staticmethod
+    def _get_function_path(function):
+        mod = inspect.getmodule(function)
+        modname = mod.__name__ + '.' if mod is not None else ''
+        function_path = "%s%s"%(modname, function.__qualname__)
+        return function_path
 
 
     def __call__(self, *args, **kwargs):
@@ -149,11 +156,6 @@ if PY3:
 
     def iobject(f, signature = None, *args, **kwargs):
 
-        frm = inspect.stack()[1]
-        mod = inspect.getmodule(frm[0])
-        modname = mod.__name__ + '.' if mod is not None else ''
-        function_path = "%s%s"%(modname, f.__qualname__)
-
         if signature is None:
             signature = inspect.signature(f)
         inputs = [_map_param(param, Input)
@@ -170,7 +172,7 @@ if PY3:
             outputs = [Output(name="output")]
             _simple_output = True
         return IObject(function = f, name = f.__name__, inputs = inputs,
-                       outputs=outputs, function_path = function_path,
+                       outputs=outputs,
                        _simple_output = _simple_output)
 
 
@@ -569,8 +571,12 @@ class IOGraph(Document):
         self.save(cascade=True)
 
 class IOSimple(IObject):
+    
+    def __init__(self, *args,**kwargs):
+        super(IOSimple, self).__init__(function = self.f, **kwargs)
 
-    def __call__(self, **kwargs):
+    @staticmethod    
+    def f(**kwargs):
         results = {}
         keys = iter(kwargs)
         for out in self.outputs:
