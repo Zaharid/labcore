@@ -102,6 +102,7 @@ default_spec = ()
 
 class IObject(IObjectBase):
     function_path = Unicode()
+    _simple_output = Bool(default_value = False)
     _iobjects = {}
     def __init__(self, function, *args, **kwargs):
         super(IObject,self).__init__(*args,**kwargs)
@@ -147,24 +148,30 @@ if PY3:
         return Output(name = name, param_type=param_type)
 
     def iobject(f, signature = None, *args, **kwargs):
+
         frm = inspect.stack()[1]
         mod = inspect.getmodule(frm[0])
         modname = mod.__name__ + '.' if mod is not None else ''
         function_path = "%s%s"%(modname, f.__qualname__)
+
         if signature is None:
             signature = inspect.signature(f)
         inputs = [_map_param(param, Input)
             for param in signature.parameters.values()]
+
         ret = signature.return_annotation
         if ret is not inspect._empty:
+            _simple_output = False
             if isinstance(ret, list):
                 outputs = [_map_output(output) for output in ret]
             else:
                 outputs = [_map_output(ret)]
         else:
             outputs = [Output(name="output")]
+            _simple_output = True
         return IObject(function = f, name = f.__name__, inputs = inputs,
-                       outputs=outputs, function_path = function_path)
+                       outputs=outputs, function_path = function_path,
+                       _simple_output = _simple_output)
 
 
 
@@ -254,10 +261,10 @@ class IONode(Document):
     @property
     def iobject(self):
         if not self._iobject:
-            self._iobject = IObject._iobjects[self.iobject_key]
+            self._iobject = IObject._iobjects[self._iobject_key]
         return self._iobject
 
-    @iobject.set
+    @iobject.setter
     def iobject(self, obj):
         self._iobject = obj
         self._iobject_key = obj.function_path
@@ -272,6 +279,7 @@ class IONode(Document):
     gui_order = Int()
     executed = Bool()
     failed = Bool()
+    has_widget = Bool(default_value = False, db = False)
 
     def FParamdict(self, paramlist):
         return {param.name : param for param in paramlist}
@@ -346,12 +354,18 @@ class IONode(Document):
             yield fo
 
     def _executed_changed(self):
+        if self.has_widget:
+            self._toggle_widget()
+
+        if not self.executed:
+            for child in self.children:
+                child.executed = False
+
+    def _toggle_widget(self):
         if self.executed:
             self.widget.add_class('executed')
         else:
             self.widget.remove_class('executed')
-            for child in self.children:
-                child.executed = False
 
 
     def run(self, **kwargs):
@@ -373,6 +387,7 @@ class IONode(Document):
         try:
             results = self.iobject.__call__(**params)
 
+
         except Exception as e:
             runinfo.success = False
             runinfo.error = e
@@ -380,6 +395,8 @@ class IONode(Document):
             self.failed = True
 
         else:
+            if self.iobject._simple_output:
+                results = {self.iobject.outputs[0].name :  results}
             for out in self.outputs:
                 last_value = out.value
                 new_value = results[out.name]
@@ -428,7 +445,8 @@ class IONode(Document):
         add_child(iocont, button)
 
         self.widget = iocont
-        self._executed_changed()
+        self.has_widget = True
+        self._toggle_widget()
         return iocont
 
     def __unicode__(self):
