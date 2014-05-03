@@ -110,8 +110,8 @@ class IObject(IObjectBase):
         self.function = function
         self.function_path = self._get_function_path(function)
         self.__class__._iobjects[self.function_path] = self
-            
-    
+
+
     @staticmethod
     def _get_function_path(function):
         mod = inspect.getmodule(function)
@@ -571,11 +571,11 @@ class IOGraph(Document):
         self.save(cascade=True)
 
 class IOSimple(IObject):
-    
+
     def __init__(self, *args,**kwargs):
         super(IOSimple, self).__init__(function = self.f, **kwargs)
 
-    @staticmethod    
+    @staticmethod
     def f(**kwargs):
         results = {}
         keys = iter(kwargs)
