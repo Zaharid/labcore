@@ -212,13 +212,15 @@ class InputMirror(Input):
     pass
 
 class IONode(Document):
-    def __init__(self, *args, **kwargs):
-        if args and isinstance(args[0], IObject):
-            kwargs['iobject'] = args[0]
-            args = args[1:]
-        super(IONode, self).__init__(*args,**kwargs)
-        if not self.iobject:
-            raise TypeError("An IObject is needed to initialize a node.")
+    def __init__(self, iobject = None, **kwargs):
+        super(IONode, self).__init__(**kwargs)
+        if iobject is not None:
+            self.iobject = iobject
+        else:
+            try:
+                self.iobject = IObject._iobjects[self._iobject_key]
+            except KeyError:
+                raise IObjectError("IONodes must have a valid iobject.")
 
         if not self.name:
             self.name = self.iobject.name
