@@ -177,9 +177,6 @@ if PY3:
 
 
 
-
-
-
 class Link(EmbeddedDocument):
 
 #==============================================================================
@@ -566,6 +563,13 @@ class IOGraph(Document):
     def sorted_iterate(self):
         #TODO Improve this
         return iter(self.nodes)
+
+    def run_all(self):
+        result = {}
+        for node in self.sorted_iterate:
+            if not node.executed:
+                result[node] = node.run()
+        return result
 
     def save_all(self):
         self.save(cascade=True)

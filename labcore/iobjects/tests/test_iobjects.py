@@ -44,22 +44,9 @@ class Test_base(BaseTest):
         self.g = g
         self.ions = ions
 
-#==============================================================================
-#     def test_update_iobject(self):
-#         io2 = IOSimple.find_one(Q(name  ='io2'))
-#         print ("IO2 inputs: %r"%(io2.inputs,))
-#         Input._idrefs.data ={}
-#         Output._idrefs.data = {}
-#         io2.inputs = ()
-#         io2.outputs = ()
-#         #io2.save()
-#         #del io2
-#         import pdb; pdb.set_trace()
-#         g = next(IOGraph.find())
-#         nd = g.nodes[2]
-#         self.assertFalse(nd.inlinks)
-#         self.assertFalse(nd.outlinks)
-#==============================================================================
+    def test_run(self):
+        pass
+
 
     def test_hash(self):
         for n1 in self.g.nodes:
@@ -97,18 +84,6 @@ class Test_base(BaseTest):
 
         self.assertEqual(g.build_graph().edges(),[])
 
-    def h(a,b):
-        return a-b
-
-#==============================================================================
-#     @iobject
-#     def f(x,y):
-#         return x+y
-#==============================================================================
-
-    def test_decorator(self):
-        pass
-        #self.assertEqual(self.f(2,2),4)
 
 
 
