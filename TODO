@@ -6,7 +6,5 @@
 -Display Widgets.
 -Implement "experiment forms".
 -Widget types.
--Represent commands as iobjects.
 -DBwidget.
--Decide how to represent graphs properly.
 -Graph plots?
