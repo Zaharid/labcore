@@ -433,7 +433,7 @@ class IONode(Document):
             w = widgets.HTMLWidget()
             out.widget = w
             add_child(iocont,w)
-            w.traits()['value']._allow_none = True
+            w.traits()['value'].allow_none = True
             traitlets.link((out,'value'),(w,'value'))
 
         button = widgets.ButtonWidget(description = "Execute %s" % self.name)
