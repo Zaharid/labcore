@@ -36,7 +36,7 @@ class TestDevice(BaseDevice):
     def __init__(self, model = 'TEST DEVICE', product_id = None):
         self.model = model
         if product_id is None:
-            self.product_id = "PRODUCT %i" % TestDevice.product.next()
+            self.product_id = "PRODUCT %i" % next(TestDevice.product)
     def write(self, s):
         return None
         

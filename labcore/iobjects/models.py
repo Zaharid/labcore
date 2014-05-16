@@ -6,13 +6,10 @@ Created on Tue Feb 11 17:18:00 2014
 """
 #from __future__ import absolute_import
 
-import itertools
-import copy
 import inspect
 import weakref
 
 from IPython.utils.py3compat import string_types, PY3
-from IPython.utils.importstring import import_item
 from IPython.utils import traitlets
 from IPython.utils.traitlets import (Bool, Any, Unicode, Enum, Instance, Int,
                                      )

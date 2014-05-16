@@ -18,9 +18,9 @@ from labcore.iobjects import models as iobjs
 from labcore.utils import make_signature
 
 
-import utils
-import device_comm
-from errors import InstrumentError
+from labcore.instruments import utils
+from labcore.instruments import device_comm
+from labcore.instruments.errors import InstrumentError
 # Create your models here.
 
 
@@ -183,7 +183,7 @@ class Instrument(AbstractInstrument):
 
 #TODO:Processors.
 #@utils.autoconnect
-class Command(iobjs.IObject):
+class Command(iobjs.IObjectBase):
     command_string = t.Unicode()
 
     command_type = t.Enum(values = COMMAND_TYPES)

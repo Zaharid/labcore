@@ -6,7 +6,7 @@ Created on Thu Nov 21 16:49:36 2013
 """
 
 
-from device_adapters import TestDevice, USBDevice
+from labcore.instruments.device_adapters import TestDevice, USBDevice
 from labcore.mongotraits.documents import MongoTraitsError, Q
 
 
