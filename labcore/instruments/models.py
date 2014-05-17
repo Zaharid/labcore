@@ -5,15 +5,6 @@ from string import Formatter
 from labcore.mongotraits import documents
 from IPython.utils import traitlets as t
 from labcore.iobjects import models as iobjs
-#==============================================================================
-#
-# from django.db import models
-# from django.contrib.contenttypes.models import ContentType
-# from django.contrib.contenttypes import generic
-#
-# from django.core.exceptions import ObjectDoesNotExist
-#==============================================================================
-#from django.db.models import signals
 
 from labcore.utils import make_signature
 
@@ -88,13 +79,11 @@ class AbstractInstrument(documents.Document):
     def __unicode__(self):
         return self.name
 
-#@utils.autoconnect
 class BaseInstrument(AbstractInstrument):
     def save(self, *args, **kwargs):
         super(BaseInstrument, self).save(*args, **kwargs)
         self.load_from_base()
 
-#@utils.autoconnect
 class Instrument(AbstractInstrument):
 
 
@@ -105,11 +94,8 @@ class Instrument(AbstractInstrument):
 
     def make_command_function(self, command):
         attrname = utils.normalize_name(command.name)
-        #if not hasattr(self, attrname):
         commandcall = command.make_callable(self)
         setattr(self, attrname, commandcall)
-        #else:
-        #    raise ValueError("Name %s is already an instrument attribute")
 
     def add_command(self, command):
 
@@ -182,13 +168,18 @@ class Instrument(AbstractInstrument):
 
 
 #TODO:Processors.
-#@utils.autoconnect
-class Command(iobjs.IObjectBase):
+class Command(iobjs.IObjectBase, documents.Document):
     command_string = t.Unicode()
 
     command_type = t.Enum(values = COMMAND_TYPES)
 
     private_description = t.Unicode()
+    
+    def __init__(self, *args ,**kwargs):
+        self._base_command = None
+        self._description = kwargs.pop('description', None)
+        self._defaults = kwargs.pop('defaults', {})
+        super(Command, self).__init__(*args, **kwargs)
 
 
     @property
@@ -204,10 +195,6 @@ class Command(iobjs.IObjectBase):
                 return None
         return None
 
-
-    #content_type = models.ForeignKey(ContentType)
-    #object_id = models.PositiveIntegerField()
-    #instrument = generic.GenericForeignKey()
     instrument = documents.Reference(AbstractInstrument)
 
 
@@ -228,12 +215,6 @@ class Command(iobjs.IObjectBase):
             self.base_command.save()
         else:
             self.private_description = value
-
-    def __init__(self, *args ,**kwargs):
-        self._base_command = None
-        self._description = kwargs.pop('description', None)
-        self._defaults = kwargs.pop('defaults', {})
-        super(Command, self).__init__(*args, **kwargs)
 
 
     def save_params(self):
