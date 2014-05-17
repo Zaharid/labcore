@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import re
+import functools
 import keyword
+
 
 def make_signature(f, argss = None, kwargs = None):
     """Return a function that does the same as f but has the signature given by
@@ -22,7 +24,7 @@ def make_signature(f, argss = None, kwargs = None):
     exestr = argstr[:]
     
     if kwargs:
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
            check_valid(key)
            kwarglist.append("%s = %r"%(key, value))
            exekw.append("%s = %s" % (key,key))
@@ -34,6 +36,6 @@ def make_signature(f, argss = None, kwargs = None):
  
     evalstr = "def signed_f({0}): return f({1})".format(argstr,exestr)
     gl = {"f":f}
-    exec(evalstr, gl, locals())
+    exec(evalstr,gl,gl)
     
-    return functools.wraps(f)(signed_f) #analysis:ignore
+    return functools.wraps(f)(gl['signed_f']) #analysis:ignore
