@@ -22,6 +22,8 @@ COMMAND_TYPES = (
 
 )
 
+def _find_bases():
+    return BaseInstrument.find()
 
 
 class AbstractInstrument(documents.Document):
@@ -32,7 +34,8 @@ class AbstractInstrument(documents.Document):
     name = t.Unicode()
 #    base_instrument = models.ForeignKey('BaseInstrument',
 #                                        null = True, blank = True)
-    base_instrument = documents.Reference(__name__+'.BaseInstrument')
+    base_instrument = documents.Reference(__name__+'.BaseInstrument', 
+                                          choose_from=_find_bases)
     #commands = generic.GenericRelation('Command')
     commands = t.List(documents.Reference(__name__+'.Command'))
 
