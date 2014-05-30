@@ -23,7 +23,7 @@ COMMAND_TYPES = (
 )
 
 def _find_bases():
-    return BaseInstrument.find()
+    return list(BaseInstrument.find())
 
 
 class AbstractInstrument(documents.Document):
