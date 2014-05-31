@@ -65,7 +65,7 @@ class RunInfo(object):
     pass
 
 class IObjectBase(traitlets.HasTraits):
-    name = Unicode()
+    name = Unicode(order = -1)
     inputs = TList(Instance(Input))
     outputs = TList(Instance(Output))
 

@@ -23,7 +23,7 @@ COMMAND_TYPES = (
 )
 
 def _find_bases():
-    return {item.name : item for item in BaseInstrument.find()}
+    return OrderedDict((item.name, item) for item in BaseInstrument.find())
 
 
 class AbstractInstrument(documents.Document):
@@ -31,7 +31,7 @@ class AbstractInstrument(documents.Document):
 
 
     #id = models.AutoField(primary_key=True)
-    name = t.Unicode()
+    name = t.Unicode(order = -1)
 #    base_instrument = models.ForeignKey('BaseInstrument',
 #                                        null = True, blank = True)
     base_instrument = documents.Reference(__name__+'.BaseInstrument', 
@@ -116,17 +116,6 @@ class Instrument(AbstractInstrument):
         super(Instrument, self).save(*args, **kwargs)
         self.load_from_base()
 
-
-#==============================================================================
-#     def post_init(self, **kwargs):
-#         try:
-#             self.prepare()
-#         except InstrumentError:
-#             pass
-#==============================================================================
-
-
-
     def associate(self, device):
         if self.device_id and self.device_id != device.model:
             raise ValueError("""Instrument already has the device id %s.
@@ -177,6 +166,8 @@ class Command(iobjs.IObjectBase, documents.Document):
     command_type = t.Enum(values = COMMAND_TYPES)
 
     private_description = t.Unicode()
+    
+    _hidden_fields = ('inputs', 'outputs')
     
     def __init__(self, *args ,**kwargs):
         self._base_command = None
@@ -322,3 +313,7 @@ class Command(iobjs.IObjectBase, documents.Document):
 
     def __unicode__(self):
         return self.name
+    
+    def __str__(self):
+        return self.name
+    
