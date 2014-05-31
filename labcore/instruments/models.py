@@ -23,7 +23,7 @@ COMMAND_TYPES = (
 )
 
 def _find_bases():
-    return list(BaseInstrument.find())
+    return {item.name : item for item in BaseInstrument.find()}
 
 
 class AbstractInstrument(documents.Document):
@@ -198,7 +198,7 @@ class Command(iobjs.IObjectBase, documents.Document):
                 return None
         return None
 
-    instrument = documents.Reference(AbstractInstrument)
+    instrument = documents.Reference(AbstractInstrument, allow_none = False)
 
 
     @property
