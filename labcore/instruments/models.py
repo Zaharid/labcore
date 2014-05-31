@@ -34,7 +34,7 @@ class AbstractInstrument(documents.Document):
     name = t.Unicode(order = -1)
 #    base_instrument = models.ForeignKey('BaseInstrument',
 #                                        null = True, blank = True)
-    base_instrument = documents.Reference(__name__+'.BaseInstrument', 
+    base_instrument = documents.Reference(__name__+'.BaseInstrument',
                                           choose_from=_find_bases)
     #commands = generic.GenericRelation('Command')
     commands = t.List(documents.Reference(__name__+'.Command'))
@@ -83,12 +83,16 @@ class AbstractInstrument(documents.Document):
         return self.name
 
 class BaseInstrument(AbstractInstrument):
+
+    _class_dict = True
+
     def save(self, *args, **kwargs):
         super(BaseInstrument, self).save(*args, **kwargs)
         self.load_from_base()
 
 class Instrument(AbstractInstrument):
 
+    _class_dict = True
 
     device_id = t.Unicode()
 
@@ -166,9 +170,9 @@ class Command(iobjs.IObjectBase, documents.Document):
     command_type = t.Enum(values = COMMAND_TYPES)
 
     private_description = t.Unicode()
-    
+
     _hidden_fields = ('inputs', 'outputs')
-    
+
     def __init__(self, *args ,**kwargs):
         self._base_command = None
         self._description = kwargs.pop('description', None)
@@ -313,7 +317,7 @@ class Command(iobjs.IObjectBase, documents.Document):
 
     def __unicode__(self):
         return self.name
-    
+
     def __str__(self):
         return self.name
-    
+
