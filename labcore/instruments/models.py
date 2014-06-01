@@ -3,6 +3,7 @@ from collections import OrderedDict
 from string import Formatter
 
 from IPython.utils import traitlets as t
+from IPython.html import widgets
 from labcore.iobjects import models as iobjs
 from labcore.mongotraits import documents
 
@@ -86,11 +87,13 @@ class AbstractInstrument(documents.Document):
         return self.name
     def __str__(self):
         return self.name
+    class WidgetRepresentation(documents.Document.WidgetRepresentation):
+        varname_map = 'name'
     
 
 class BaseInstrument(AbstractInstrument):
 
-    _class_dict = True
+    _class_tag = True
 
     def save(self, *args, **kwargs):
         super(BaseInstrument, self).save(*args, **kwargs)
@@ -98,9 +101,11 @@ class BaseInstrument(AbstractInstrument):
 
 class Instrument(AbstractInstrument):
 
-    _class_dict = True
+    _class_tag = True
 
     device_id = t.Unicode()
+    
+    device = None
 
     #interface = models.ForeignKey(Interface)
     #commands = models.ManyToManyField(Command)
@@ -175,7 +180,7 @@ class Command(iobjs.IObjectBase, documents.Document):
 
     command_type = t.Enum(values = COMMAND_TYPES)
 
-    private_description = t.Unicode()
+    private_description = t.Unicode(widget = widgets.TextareaWidget)
     
     instrument = documents.Reference(AbstractInstrument)
 
@@ -250,15 +255,17 @@ class Command(iobjs.IObjectBase, documents.Document):
             else:
                 argnames += [param.name]
             allnames += [param.name]
-
-        ct = self.command_type
-        if ct == "Write":
-            instrf = instrument.device.write
-        elif ct == "Ask":
-            instrf = instrument.device.ask
-        elif ct == "Ask Raw":
-            instrf = instrument.device.ask_raw
-
+        if instrument.device:
+            ct = self.command_type
+            if ct == "Write":
+                instrf = instrument.device.write
+            elif ct == "Ask":
+                instrf = instrument.device.ask
+            elif ct == "Ask Raw":
+                instrf = instrument.device.ask_raw
+        else:
+            def instrf(x):
+                raise InstrumentError("Needs to connect to a device.")
         #f_factory is needed so that variables get bundled in f.
         def f_factory(command_string, loc_instrf, loc_argnames):
 

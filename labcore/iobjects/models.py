@@ -18,10 +18,15 @@ from IPython.display import display
 
 import networkx
 
-from labcore.iobjects.utils import (add_child, widget_mapping, param_types,
-                                     )
+
 from labcore.mongotraits import (Document, EmbeddedDocument,
     EmbeddedReference, Reference, TList)
+    
+from labcore.widgets.widgetrepr import WidgetRepresentation
+
+from labcore.iobjects.utils import (add_child, widget_mapping, param_types,
+                                     )
+
 
 
 class IObjectError(Exception):
@@ -95,6 +100,8 @@ class IObjectBase(traitlets.HasTraits):
         if not self.name:
             raise AttributeError("Name not provided")
         return self.name
+    class WidgetRepresentation(WidgetRepresentation):
+        varname_map = 'name'
 
 default_spec = ()
 
