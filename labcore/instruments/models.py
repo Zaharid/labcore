@@ -2,12 +2,12 @@
 from collections import OrderedDict
 from string import Formatter
 
-from labcore.mongotraits import documents
 from IPython.utils import traitlets as t
 from labcore.iobjects import models as iobjs
+from labcore.mongotraits import documents
 
 from labcore.utils import make_signature
-
+from labcore.widgets.widgetrepr import WidgetRepresentation
 
 from labcore.instruments import utils
 from labcore.instruments import device_comm
@@ -78,24 +78,15 @@ class AbstractInstrument(documents.Document):
 
 
     def command_form(self):
-        from labcore.widgets.create_object import CreateManager
-        class CM(CreateManager):
-            excludes = ['instrument']
-            def new_object(this, button):
-                values = this.read_form()
-                command = Command(**values)
-                self.add_command(command)
-                return command
+        wr =  Command.AddCommandWR(Command, instrument = self)
+        wr.create_object()
 
-            @property
-            def create_description(this):
-                return "Add to %s" % self
-        return CM(None, Command).create_object()
 
     def __unicode__(self):
         return self.name
     def __str__(self):
         return self.name
+    
 
 class BaseInstrument(AbstractInstrument):
 
@@ -185,8 +176,8 @@ class Command(iobjs.IObjectBase, documents.Document):
     command_type = t.Enum(values = COMMAND_TYPES)
 
     private_description = t.Unicode()
-
-    _hidden_fields = ('inputs', 'outputs')
+    
+    instrument = documents.Reference(AbstractInstrument)
 
     def __init__(self, *args ,**kwargs):
         self._base_command = None
@@ -208,7 +199,7 @@ class Command(iobjs.IObjectBase, documents.Document):
                 return None
         return None
 
-    instrument = documents.Reference(AbstractInstrument, allow_none = False)
+    
 
 
     @property
@@ -335,4 +326,21 @@ class Command(iobjs.IObjectBase, documents.Document):
 
     def __str__(self):
         return self.name
+    
+    class WidgetRepresentation(WidgetRepresentation):
+        hidden_fields = ('imputs', 'outputs')
+        
+    class AddCommandWR(WidgetRepresentation):
+        hidden_fields = ('inputs', 'outputs', 'instrument')
+        def __init__(self, cls, instrument, *args, **kwargs):
+            self.instrument = instrument
+            super(Command.AddCommandWR, self).__init__(cls, *args,**kwargs)
+        def new_object(self, button):
+            values = self.read_form()
+            command = Command(instrument = self.instrument, **values)
+            self.instrument.add_command(command)
+            return command
+            
+        def create_description(self):
+            return "Add to %s" % self.instrument
 
