@@ -77,9 +77,24 @@ class AbstractInstrument(documents.Document):
                    newcommand.save()
 
 
+    def command_form(self):
+        from labcore.widgets.create_object import CreateManager
+        class CM(CreateManager):
+            excludes = ['instrument']
+            def new_object(this, button):
+                values = this.read_form()
+                command = Command(**values)
+                self.add_command(command)
+                return command
 
+            @property
+            def create_description(this):
+                return "Add to %s" % self
+        return CM(None, Command).create_object()
 
     def __unicode__(self):
+        return self.name
+    def __str__(self):
         return self.name
 
 class BaseInstrument(AbstractInstrument):
