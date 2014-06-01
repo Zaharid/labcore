@@ -78,8 +78,9 @@ class AbstractInstrument(documents.Document):
                    newcommand.save()
 
 
-    def command_form(self):
-        wr =  Command.AddCommandWR(Command, instrument = self)
+    def command_form(self, **kwargs):
+        wr =  Command.AddCommandWR(Command, instrument = self, 
+                                   default_values = kwargs)
         wr.create_object()
 
 
@@ -264,8 +265,8 @@ class Command(iobjs.IObjectBase, documents.Document):
             elif ct == "Ask Raw":
                 instrf = instrument.device.ask_raw
         else:
-            def instrf(x):
-                raise InstrumentError("Needs to connect to a device.")
+            raise InstrumentError("Needs to connect be connected \
+                                    to a device on initialization.")
         #f_factory is needed so that variables get bundled in f.
         def f_factory(command_string, loc_instrf, loc_argnames):
 
