@@ -8,7 +8,7 @@ from labcore.iobjects import models as iobjs
 from labcore.mongotraits import documents
 
 from labcore.utils import make_signature
-from labcore.widgets.widgetrepr import WidgetRepresentation
+from labcore.widgets import widgetrepr
 
 from labcore.instruments import utils
 from labcore.instruments import device_comm
@@ -39,6 +39,14 @@ class AbstractInstrument(documents.Document):
                                           choose_from=_find_bases)
     #commands = generic.GenericRelation('Command')
     commands = t.List(documents.Reference(__name__+'.Command'))
+
+    def __init__(self, *args, **kwargs):
+        super(AbstractInstrument, self).__init__(*args, **kwargs)
+        for command in self.commands:
+            if command.instrument is None:
+                command.instrument = self
+            if command.instrument != self:
+                raise InstrumentError("Command defined for another instrument.")
 
     @property
     def _command_names(self):
@@ -79,7 +87,7 @@ class AbstractInstrument(documents.Document):
 
 
     def command_form(self, **kwargs):
-        wr =  Command.AddCommandWR(Command, instrument = self, 
+        wr =  Command.AddCommandWR(Command, instrument = self,
                                    default_values = kwargs)
         wr.create_object()
 
@@ -90,7 +98,34 @@ class AbstractInstrument(documents.Document):
         return self.name
     class WidgetRepresentation(documents.Document.WidgetRepresentation):
         varname_map = 'name'
-    
+        def get_widget(self, name ,trait):
+            if name == 'commands':
+                return self._command_widget()
+            return super(AbstractInstrument.WidgetRepresentation, self).get_widget(name, trait)
+
+        def _command_widget(self):
+            commands = self.default_values.get('commands', [])
+            cont = widgets.ContainerWidget(description = "Commands")
+            title = widgets.LatexWidget("Commands")
+            children = [title]
+            for command in commands:
+                wcont = widgets.ContainerWidget(description = command.name)
+                edit_button = widgets.ButtonWidget(description = "Edit")
+                delete_button = widgets.ButtonWidget(description = "Delete")
+                wcont.children = [edit_button, delete_button]
+                children.append(wcont)
+            add_button = widgets.ButtonWidget(description = "Add Command")
+
+            def add_f(button):
+                 wr =  Command.AddCommandWR(Command, instrument = None,
+                                container_widget = widgets.PopupWidget)
+                 wr.create_object()
+            add_button.on_click(add_f)
+            children.append(add_button)
+            cont.children = children
+            return cont
+
+
 
 class BaseInstrument(AbstractInstrument):
 
@@ -105,7 +140,7 @@ class Instrument(AbstractInstrument):
     _class_tag = True
 
     device_id = t.Unicode()
-    
+
     device = None
 
     #interface = models.ForeignKey(Interface)
@@ -182,7 +217,7 @@ class Command(iobjs.IObjectBase, documents.Document):
     command_type = t.Enum(values = COMMAND_TYPES)
 
     private_description = t.Unicode(widget = widgets.TextareaWidget)
-    
+
     instrument = documents.Reference(AbstractInstrument)
 
     def __init__(self, *args ,**kwargs):
@@ -205,7 +240,7 @@ class Command(iobjs.IObjectBase, documents.Document):
                 return None
         return None
 
-    
+
 
 
     @property
@@ -334,10 +369,10 @@ class Command(iobjs.IObjectBase, documents.Document):
 
     def __str__(self):
         return self.name
-    
-    class WidgetRepresentation(WidgetRepresentation):
+
+    class WidgetRepresentation(widgetrepr.WidgetRepresentation):
         hidden_fields = ('imputs', 'outputs')
-        
+
     class AddCommandWR(WidgetRepresentation):
         hidden_fields = ('inputs', 'outputs', 'instrument')
         def __init__(self, cls, instrument, *args, **kwargs):
@@ -346,9 +381,10 @@ class Command(iobjs.IObjectBase, documents.Document):
         def new_object(self, button):
             values = self.read_form()
             command = Command(instrument = self.instrument, **values)
-            self.instrument.add_command(command)
+            if self.instrument is not None:
+                self.instrument.add_command(command)
             return command
-            
+
         def create_description(self):
             return "Add to %s" % self.instrument
 
