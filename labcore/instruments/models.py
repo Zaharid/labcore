@@ -98,32 +98,7 @@ class AbstractInstrument(documents.Document):
         return self.name
     class WidgetRepresentation(documents.Document.WidgetRepresentation):
         varname_map = 'name'
-        def get_widget(self, name ,trait):
-            if name == 'commands':
-                return self._command_widget()
-            return super(AbstractInstrument.WidgetRepresentation, self).get_widget(name, trait)
-
-        def _command_widget(self):
-            commands = self.default_values.get('commands', [])
-            cont = widgets.ContainerWidget(description = "Commands")
-            title = widgets.LatexWidget(value = "Commands")
-            children = [title]
-            for command in commands:
-                wcont = widgets.ContainerWidget(description = command.name)
-                edit_button = widgets.ButtonWidget(description = "Edit")
-                delete_button = widgets.ButtonWidget(description = "Delete")
-                wcont.children = [edit_button, delete_button]
-                children.append(wcont)
-            add_button = widgets.ButtonWidget(description = "Add Command")
-
-            def add_f(button):
-                 wr =  Command.AddCommandWR(Command, instrument = None,
-                                container_widget = widgets.PopupWidget)
-                 wr.create_object()
-            add_button.on_click(add_f)
-            children.append(add_button)
-            cont.children = children
-            return cont
+            
 
 
 
