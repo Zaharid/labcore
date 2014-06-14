@@ -106,7 +106,7 @@ class AbstractInstrument(documents.Document):
         def _command_widget(self):
             commands = self.default_values.get('commands', [])
             cont = widgets.ContainerWidget(description = "Commands")
-            title = widgets.LatexWidget("Commands")
+            title = widgets.LatexWidget(value = "Commands")
             children = [title]
             for command in commands:
                 wcont = widgets.ContainerWidget(description = command.name)
@@ -378,7 +378,7 @@ class Command(iobjs.IObjectBase, documents.Document):
         def __init__(self, cls, instrument, *args, **kwargs):
             self.instrument = instrument
             super(Command.AddCommandWR, self).__init__(cls, *args,**kwargs)
-        def new_object(self, button):
+        def new_object(self):
             values = self.read_form()
             command = Command(instrument = self.instrument, **values)
             if self.instrument is not None:
