@@ -346,7 +346,7 @@ class Command(iobjs.IObjectBase, documents.Document):
         return self.name
 
     class WidgetRepresentation(widgetrepr.WidgetRepresentation):
-        hidden_fields = ('inputs', 'outputs')
+        hidden_fields = ('inputs', 'outputs', 'instrument')
 
     class AddCommandWR(WidgetRepresentation):
         hidden_fields = ('inputs', 'outputs', 'instrument')
