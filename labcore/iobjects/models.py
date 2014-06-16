@@ -229,8 +229,8 @@ class Link(EmbeddedDocument):
         d = hash(self.fr)
         return a^b^c^d
 
-    def __unicode__(self):
-        return "{0.fr}:{0.fr_output}->{0.to}:{0.to_input}".format(self)
+    def __str__(self):
+        return "{0.fr_output} -> {0.to_input}".format(self)
 
 class MirrorMixin(traitlets.HasTraits):
     mirror_id = ObjectIdTrait(allow_none = False)
@@ -270,7 +270,6 @@ class IONode(Document):
             myinp = InputMirror(mirror_id = mirror_id, **vals)
             self.inputs = self.inputs + (myinp,)
         
-        print (self.outputs)
         obj_outs = set(self.iobject.outputs)
         obj_ins = set(self.iobject.inputs)
         my_outs = set(self.outputs)
@@ -286,7 +285,6 @@ class IONode(Document):
             newins = list(self.inputs)
             newins.remove(inp)
             self.inputs = newins
-        print (self.outputs)
 
     #id = fields.ObjectIdField()
     _iobject = Instance(IObject, db=False, widget = None)
@@ -464,7 +462,7 @@ class IONode(Document):
                     if value is not None}
             w = widgets.TextWidget(**kw)
             inp.widget = w
-            w.traits()['value']._allow_none = True
+            w.traits()['value'].allow_none = True
             traitlets.link((inp,'value'),(w,'value'))
 
             def set_exec(_w):
@@ -518,18 +516,6 @@ class IOGraph(Document):
             for link in node.inlinks:
                 yield link
 
-    def build_graph(self):
-        G = networkx.MultiDiGraph()
-        G.add_nodes_from(self.nodes)
-        for node in self.nodes:
-            G.add_edges_from((link.fr, node, {'link':link})
-                    for link in node.inlinks)
-        return G
-
-    @property
-    def graph(self):
-        #TODO: Cache?
-        return self.build_graph()
 
     def _link_valid(self, link):
         return (link.to in self.nodes and link.fr in self.nodes and
@@ -549,8 +535,10 @@ class IOGraph(Document):
     def bind(self, fr, out, to, inp):
         if to in fr.ancestors or to is fr:
             raise ValueError("Recursive binding is not allowed.")
-        if not fr in self.nodes or not to in self.nodes:
-            raise ValueError('Nodes must be in graph nodes before linking.')
+        if not fr in self.nodes:
+            self.nodes = self.nodes + (fr,)
+        if not to in self.nodes:
+            self.nodes = self.nodes + (to,)
         if isinstance(inp, string_types):
             inp = to.inputdict[inp]
         if isinstance(out, string_types):
@@ -584,15 +572,52 @@ class IOGraph(Document):
         l = list(fr.outlinks)
         l.remove(link)
         fr.outlinks = l
+        
+        
+        
+    def build_graph(self):
+        G = networkx.MultiDiGraph()
+        G.add_nodes_from(self.nodes)
+        for node in self.nodes:
+            G.add_edges_from((link.fr, node, {'label':str(link)})
+                    for link in node.inlinks)
+            class _N():
+                def __init__(self, n):
+                    self.str = str(n)
+                def __str__(self):
+                    return self.str
+            inps = [_N(inp) for inp in node.free_inputs]
+            G.add_nodes_from(inps)
+            G.add_edges_from(((inp, node, {'label':''}) 
+            for inp in inps))
+            
+        return G
+
+    @property
+    def graph(self):
+        #TODO: Cache?
+        return self.build_graph()
 
     def draw_graph(self):
         G = self.build_graph()
-        networkx.draw(G)
+        pos = networkx.spring_layout(G)
+        
+        nodelist = [node for node in G.nodes() if isinstance(node, IONode)]
+        
+        networkx.draw(G, pos,  node_size =  1700, nodelist = nodelist)
+        edge_labels = {(edge[0], edge[1]):edge[2]['label'] for edge in G.edges_iter(data = True)}
+        networkx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
 
     def make_control(self):
         control_container = widgets.ContainerWidget()
+        run_all_btn = widgets.ButtonWidget(description = "Run all")
+        def _ra(btn):
+            result = self.run_all()
+            display(result)
+        run_all_btn.on_click(_ra)
         add_child(control_container, widgets.HTMLWidget(
                     value="<h2>%s</h2>"%self.name))
+        add_child(control_container, run_all_btn)
         css_classes = {control_container: 'control-container'}
         for node in self.sorted_iterate():
             add_child(control_container, node.make_form(css_classes))
@@ -608,24 +633,13 @@ class IOGraph(Document):
 
     def run_all(self):
         result = {}
-        for node in self.sorted_iterate:
+        for node in self.sorted_iterate():
             if not node.executed:
                 result[node] = node.run()
+        self.result = result
         return result
 
     def save_all(self):
         self.save(cascade=True)
     
-class IOSimple(IObject):
 
-    def __init__(self, *args,**kwargs):
-        super(IOSimple, self).__init__(function = self.f, **kwargs)
-
-    @staticmethod
-    def f(**kwargs):
-        results = {}
-        keys = iter(kwargs)
-        for out in self.outputs:
-            results[out.name] = kwargs[ next(keys) ]
-
-        return results
