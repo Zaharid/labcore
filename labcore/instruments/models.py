@@ -186,7 +186,7 @@ class Instrument(AbstractInstrument):
 
 
 #TODO:Processors.
-class Command(iobjs.IObjectBase, documents.Document):
+class Command(iobjs.DocumentIObject):
     command_string = t.Unicode()
 
     command_type = t.Enum(values = COMMAND_TYPES)
@@ -214,9 +214,6 @@ class Command(iobjs.IObjectBase, documents.Document):
             except  KeyError:
                 return None
         return None
-
-
-
 
     @property
     def description(self):

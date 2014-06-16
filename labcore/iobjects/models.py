@@ -16,11 +16,13 @@ from IPython.utils.traitlets import (Bool, Any, Unicode, Enum, Instance, Int,
 from IPython.html import widgets
 from IPython.display import display
 
+from bson import objectid
+
 import networkx
 
 
 from labcore.mongotraits import (Document, EmbeddedDocument,
-    EmbeddedReference, Reference, TList)
+    EmbeddedReference, Reference, TList, Meta, ObjectIdTrait)
     
 from labcore.widgets.widgetrepr import WidgetRepresentation
 
@@ -44,10 +46,13 @@ class Parameter(EmbeddedDocument):
     description = Unicode()
     #parent_ref = ObjectIdTrait(allow_none = True)
     def __eq__(self, other):
-        return self.id == other.id
+        return hash(self) == hash(other)
 
     def __hash__(self):
         return hash(self.id)
+    
+    def repr_name(self):
+        return self.name
 
     def __str__(self):
         return self.name
@@ -69,10 +74,26 @@ class Output(Parameter):
 class RunInfo(object):
     pass
 
-class IObjectBase(traitlets.HasTraits):
+class IObjectMeta(traitlets.MetaHasTraits):
+    _ioclasses = weakref.WeakValueDictionary()
+    def __init__(cls, name, bases, classdict):
+        super().__init__(name, bases, classdict)
+        cls._ioclasses[name] = cls
+
+class IObjectBase(traitlets.HasTraits, metaclass = IObjectMeta):
+    _reference = Unicode(widget = None)
+    _iobjects = weakref.WeakValueDictionary()
     name = Unicode(order = -1)
     inputs = TList(Instance(Input))
     outputs = TList(Instance(Output))
+    
+    
+    def declare_dict_ref(self, reference):
+        self.__class__._iobjects[self.reference] = self
+    
+    @classmethod
+    def load_dict_ref(cls, ref):
+        return cls._iobjects[ref]
 
     #executed = Bool(default_value = False, db=True)
     log_output = Bool(default_value = False)
@@ -106,14 +127,12 @@ class IObjectBase(traitlets.HasTraits):
 default_spec = ()
 
 class IObject(IObjectBase):
-    function_path = Unicode()
-    _simple_output = Bool(default_value = False)
-    _iobjects = weakref.WeakValueDictionary()
     def __init__(self, function, *args, **kwargs):
-        super(IObject,self).__init__(*args,**kwargs)
+        super().__init__(*args, **kwargs)
+        reference = self._get_function_path(function)
         self.function = function
-        self.function_path = self._get_function_path(function)
-        self.__class__._iobjects[self.function_path] = self
+        self.reference = reference
+        self.declare_dict_ref(reference)
 
 
     @staticmethod
@@ -180,16 +199,20 @@ if PY3:
                        _simple_output = _simple_output)
 
 
+class DocumentIObjectMeta(Meta, IObjectMeta):
+    pass
+class DocumentIObject(Document, IObjectBase, metaclass = DocumentIObjectMeta):
+    
+    def __init__(self, *args, **kwargs):
+       super.__init__(*args, **kwargs)
+       self.reference = str(self.id)
+       
+    @classmethod  
+    def load_dict_ref(cls, ref):
+        return cls.load_ref(objectid.ObjectId(ref))
+        
 
 class Link(EmbeddedDocument):
-
-#==============================================================================
-#     def __init__(self, *args, **kwargs):
-#         super(Link, self).__init__(*args, **kwargs)
-#         if not all((self.to_input,self.fr,self.fr_output, self.to)):
-#             raise TypeError("All parameters of a link must be specified.")
-#==============================================================================
-
     to = Reference(__name__+'.IONode')
     fr_output = EmbeddedReference(Output, document = __name__+'.IONode',
                                   trait_name='outputs')
@@ -209,9 +232,14 @@ class Link(EmbeddedDocument):
     def __unicode__(self):
         return "{0.fr}:{0.fr_output}->{0.to}:{0.to_input}".format(self)
 
-class OutputMirror(Output):
+class MirrorMixin(traitlets.HasTraits):
+    mirror_id = ObjectIdTrait(allow_none = False)
+    def __hash__(self):
+        return hash(self.mirror_id)
+
+class OutputMirror(MirrorMixin, Output):
     pass
-class InputMirror(Input):
+class InputMirror(MirrorMixin, Input):
     pass
 
 class IONode(Document):
@@ -219,12 +247,7 @@ class IONode(Document):
         super(IONode, self).__init__(**kwargs)
         if iobject is not None:
             self.iobject = iobject
-        else:
-            try:
-                self.iobject = IObject._iobjects[self._iobject_key]
-            except KeyError:
-                raise IObjectError("IONodes must have a valid iobject.")
-
+            
         if not self.name:
             self.name = self.iobject.name
 
@@ -236,13 +259,18 @@ class IONode(Document):
         new_outs = obj_outs - my_outs
         new_ins = obj_ins - my_ins
         for out in new_outs:
-            myout = OutputMirror(**out._trait_values)
+            vals = dict(out._trait_values)
+            mirror_id = vals.pop('_id')
+            myout = OutputMirror(mirror_id = mirror_id,  **vals)
             self.outputs = self.outputs + (myout,)
 
         for inp in new_ins:
-            myinp = InputMirror(**inp._trait_values)
+            vals = dict(inp._trait_values)
+            mirror_id = vals.pop('_id')
+            myinp = InputMirror(mirror_id = mirror_id, **vals)
             self.inputs = self.inputs + (myinp,)
-
+        
+        print (self.outputs)
         obj_outs = set(self.iobject.outputs)
         obj_ins = set(self.iobject.inputs)
         my_outs = set(self.outputs)
@@ -258,21 +286,12 @@ class IONode(Document):
             newins = list(self.inputs)
             newins.remove(inp)
             self.inputs = newins
+        print (self.outputs)
 
     #id = fields.ObjectIdField()
-    _iobject = Instance(IObject, db=False)
-    _iobject_key = Unicode()
-
-    @property
-    def iobject(self):
-        if not self._iobject:
-            self._iobject = IObject._iobjects[self._iobject_key]
-        return self._iobject
-
-    @iobject.setter
-    def iobject(self, obj):
-        self._iobject = obj
-        self._iobject_key = obj.function_path
+    _iobject = Instance(IObject, db=False, widget = None)
+    _iobject_key = Unicode(widget = None)
+    _iobject_class = Unicode(widget = None)
     name = Unicode()
 
     inputs = TList(Instance(InputMirror))
@@ -285,6 +304,23 @@ class IONode(Document):
     executed = Bool()
     failed = Bool()
     has_widget = Bool(default_value = False, db = False)
+
+    @property
+    def iobject(self):
+        if not self._iobject:
+            try:
+                iobject_class = IObjectMeta._ioclasses[self._iobject_class]
+                self._iobject = iobject_class.load_dict_ref(self._iobject_key)
+            except KeyError:
+                raise IObjectError("IONodes must have a valid iobject.")
+        return self._iobject
+
+    @iobject.setter
+    def iobject(self, iobject):
+        self._iobject = iobject
+        self._iobject_class = iobject.__class__.__name__
+        self._iobject_key = iobject.reference
+
 
     def FParamdict(self, paramlist):
         return {param.name : param for param in paramlist}
@@ -454,10 +490,12 @@ class IONode(Document):
         self._toggle_widget()
         return iocont
 
+    def repr_name(self):
+        return self.name
     def __unicode__(self):
-        return self.iobject.name
+        return self.name
     def __str__(self):
-        return self.iobject.name
+        return self.name
 
 
 class IOGraph(Document):
@@ -577,7 +615,7 @@ class IOGraph(Document):
 
     def save_all(self):
         self.save(cascade=True)
-
+    
 class IOSimple(IObject):
 
     def __init__(self, *args,**kwargs):
