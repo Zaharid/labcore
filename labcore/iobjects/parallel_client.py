@@ -18,6 +18,7 @@ def targets(key):
 def load_client():
     global client, view
     client = Client()
-    view = client[:]
+    view = client.load_balanced_view()
     client.block = False
+    client[:].use_dill()
     

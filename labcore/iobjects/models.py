@@ -302,6 +302,7 @@ class IONode(Document):
     outlinks = TList(Instance(Link))
 
     executed = Bool(widget = None)
+    pending = Bool(widget = None)
     failed = Bool(widget = None)
     has_widget = Bool(default_value = False, db = False, widget = None)
     
@@ -399,38 +400,45 @@ class IONode(Document):
 
     def _executed_changed(self):
         if self.has_widget:
-            self._toggle_widget()
+            self._toggle_executed()
 
         if not self.executed:
             for child in self.children:
                 child.executed = False
+    
+    def _pending_changed(self):
+        
+        if self.has_widget:
+            self._toggle_pending()
 
-    def _toggle_widget(self):
+    def _toggle_executed(self):
         if self.executed:
             self.widget.add_class('executed')
         else:
             self.widget.remove_class('executed')
-    
-    def _runnode(self,**params):
-        if self.runaddress:
-            if parallel_client.client:
-                targets = parallel_client.targets(self.runaddress)
-                v = parallel_client.view
-                with v.temp_flags(targets = targets):
-                    asyncresults = v.apply(self.iobject.__call__, **params)
-                
-            else:
-                raise IObjectError("Need to connect a client to run on a runaddress")
+            
+    def _toggle_pending(self):
+        if self.pending:
+            self.widget.add_class('pending')
+            self.widget.button.disabled = True
         else:
-            raise IObjectError("Need to connect a client to run on a runaddress")
-            #results = self.iobject.__call__(**params)
-        return asyncresults
+            self.widget.remove_class('pending')
+            self.widget.button.disabled = False
+    
+    def _runnode(self, deps, **params):
+       
+        if parallel_client.client:
+            targets = parallel_client.targets(self.runaddress)
+            v = parallel_client.view
+            with v.temp_flags(targets = targets, after = deps, block = False):
+                async_results = v.apply_async(self.iobject.__call__, **params)
+        return async_results
 
 
     def run(self, **kwargs):
         params = dict(kwargs)
-        runinfo = RunInfo()
         
+        deps = []
 
         for inlink in self.inlinks:
             if inlink.fr_output.name in kwargs:
@@ -438,37 +446,40 @@ class IONode(Document):
             p = inlink.fr
             if (not p.executed or
                 any(not ant.executed for ant in p.ancestors)):
-                p.run()
+                
+                deps.append(p.run())
+                
 
         for inp in self.inputs:
             if inp.name in kwargs:
                 continue
             params[inp.name] = inp.value
-        try:
-            results = self.iobject.__call__(**params)
+        async_results = self._runnode(deps, **params)
+        self.pending = True
+        return async_results
+       
 
-
-        except Exception as e:
-            runinfo.success = False
-            runinfo.error = e
-            self.executed = False
-            self.failed = True
-
-        else:
-            if self.iobject._simple_output:
+        return async_results
+    
+    def on_result(self, results):
+        self.pending = False
+        self.executed = True
+        if self.iobject._simple_output:
                 results = {self.iobject.outputs[0].name :  results}
-            for out in self.outputs:
-                last_value = out.value
-                new_value = results[out.name]
-                if last_value != new_value and out in self.output_mapping:
-                     self.output_mapping[out].to.executed = False
-                out.value = new_value
+        for out in self.outputs:
+            last_value = out.value
+            new_value = results[out.name]
+            if last_value != new_value and out in self.output_mapping:
+                 self.output_mapping[out].to.executed = False
+            out.value = new_value
 
-            for inp in self.inputs:
-                inp.default = inp.value
-
-            self.executed = True
-
+        for inp in self.inputs:
+            inp.default = inp.value
+    
+    def run_sync(self, **kwargs):
+        async_results = self.run(**kwargs)
+        results = async_results.get()
+        self.on_result(results)
         return results
 
     def make_form(self, css_classes):
@@ -500,13 +511,14 @@ class IONode(Document):
 
         button = widgets.ButtonWidget(description = "Execute %s" % self.name)
         def _run(b):
-            self.run()
+            self.run_sync()
         button.on_click(_run)
         add_child(iocont, button)
 
         self.widget = iocont
+        self.widget.button = button
         self.has_widget = True
-        self._toggle_widget()
+        self._toggle_executed()
         return iocont
 
     def repr_name(self):
@@ -653,12 +665,23 @@ class IOGraph(Document):
         return iter(self.nodes)
 
     def run_all(self):
-        result = {}
+        async_results = {}
         for node in self.sorted_iterate():
             if not node.executed:
-                result[node] = node.run()
-        self.result = result
-        return result
+                async_results[node] = node.run()
+        results = {}
+        while async_results:
+            delnodes = []
+            for (node, async_result) in async_results.items():
+                if async_result.ready():
+                    r = async_result.result()
+                    results[node] = r
+                    node.on_results(r)
+                    delnodes.append[node]
+            for node in delnodes:
+                del async_results[node]
+            
+        return results
 
     def save_all(self):
         self.save(cascade=True)

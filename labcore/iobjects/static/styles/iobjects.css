@@ -16,3 +16,6 @@ This will always be an empty file in IPython
 .executed {
   background-color: #eeffee;
 }
+.pending {
+  background-color: #ffffee;
+}
