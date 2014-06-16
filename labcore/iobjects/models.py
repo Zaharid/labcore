@@ -25,7 +25,7 @@ import networkx
 
 from labcore.mongotraits import (Document, EmbeddedDocument,
     EmbeddedReference, Reference, TList, Meta, ObjectIdTrait)
-    
+
 from labcore.widgets.widgetrepr import WidgetRepresentation
 
 from labcore.iobjects.utils import (add_child, param_types,
@@ -52,7 +52,7 @@ class Parameter(EmbeddedDocument):
 
     def __hash__(self):
         return hash(self.id)
-    
+
     def repr_name(self):
         return self.name
 
@@ -88,11 +88,11 @@ class IObjectBase(traitlets.HasTraits, metaclass = IObjectMeta):
     name = Unicode(order = -1)
     inputs = TList(Instance(Input))
     outputs = TList(Instance(Output))
-    
-    
+
+
     def declare_dict_ref(self, reference):
         self.__class__._iobjects[self.reference] = self
-    
+
     @classmethod
     def load_dict_ref(cls, ref):
         return cls._iobjects[ref]
@@ -204,15 +204,15 @@ if PY3:
 class DocumentIObjectMeta(Meta, IObjectMeta):
     pass
 class DocumentIObject(Document, IObjectBase, metaclass = DocumentIObjectMeta):
-    
+
     def __init__(self, *args, **kwargs):
        super.__init__(*args, **kwargs)
        self.reference = str(self.id)
-       
-    @classmethod  
+
+    @classmethod
     def load_dict_ref(cls, ref):
         return cls.load_ref(objectid.ObjectId(ref))
-        
+
 
 class Link(EmbeddedDocument):
     to = Reference(__name__+'.IONode')
@@ -249,7 +249,7 @@ class IONode(Document):
         super(IONode, self).__init__(**kwargs)
         if iobject is not None:
             self.iobject = iobject
-            
+
         if not self.name:
             self.name = self.iobject.name
 
@@ -271,7 +271,7 @@ class IONode(Document):
             mirror_id = vals.pop('_id')
             myinp = InputMirror(mirror_id = mirror_id, **vals)
             self.inputs = self.inputs + (myinp,)
-        
+
         obj_outs = set(self.iobject.outputs)
         obj_ins = set(self.iobject.inputs)
         my_outs = set(self.outputs)
@@ -292,8 +292,8 @@ class IONode(Document):
     _iobject = Instance(IObject, db=False, widget = None)
     _iobject_key = Unicode(widget = None)
     _iobject_class = Unicode(widget = None)
-    
-    
+
+
     name = Unicode()
 
     inputs = TList(Instance(InputMirror))
@@ -306,9 +306,12 @@ class IONode(Document):
     pending = Bool(widget = None)
     failed = Bool(widget = None)
     has_widget = Bool(default_value = False, db = False, widget = None)
-    
-    runaddress = Enum(values = parallel_client.client_map.keys(), 
+
+    runaddress = Enum(values = parallel_client.client_map.keys(),
                       default_value = 'local', allow_none = False)
+
+    _async_results = None
+    _results = None
 
     @property
     def iobject(self):
@@ -404,11 +407,13 @@ class IONode(Document):
             self._toggle_executed()
 
         if not self.executed:
+            self._async_results = None
+            self._results = None
             for child in self.children:
                 child.executed = False
-    
+
     def _pending_changed(self):
-        
+
         if self.has_widget:
             self._toggle_pending()
 
@@ -417,7 +422,7 @@ class IONode(Document):
             self.widget.add_class('executed')
         else:
             self.widget.remove_class('executed')
-            
+
     def _toggle_pending(self):
         if self.pending:
             self.widget.add_class('pending')
@@ -512,6 +517,7 @@ class IONode(Document):
 
         button = widgets.ButtonWidget(description = "Execute %s" % self.name)
         def _run(b):
+            self.executed = False
             self.run_sync()
         button.on_click(_run)
         add_child(iocont, button)
@@ -606,9 +612,9 @@ class IOGraph(Document):
         l = list(fr.outlinks)
         l.remove(link)
         fr.outlinks = l
-        
-        
-        
+
+
+
     def build_graph(self):
         G = networkx.MultiDiGraph()
         G.add_nodes_from(self.nodes)
@@ -622,9 +628,9 @@ class IOGraph(Document):
                     return self.str
             inps = [_N(inp) for inp in node.free_inputs]
             G.add_nodes_from(inps)
-            G.add_edges_from(((inp, node, {'label':''}) 
+            G.add_edges_from(((inp, node, {'label':''})
             for inp in inps))
-            
+
         return G
 
     @property
@@ -635,9 +641,9 @@ class IOGraph(Document):
     def draw_graph(self):
         G = self.build_graph()
         pos = networkx.spring_layout(G)
-        
+
         nodelist = [node for node in G.nodes() if isinstance(node, IONode)]
-        
+
         networkx.draw(G, pos,  node_size =  1700, nodelist = nodelist)
         edge_labels = {(edge[0], edge[1]):edge[2]['label'] for edge in G.edges_iter(data = True)}
         networkx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
@@ -667,10 +673,13 @@ class IOGraph(Document):
 
     def run_all(self):
         async_results = {}
+        results = {}
         for node in self.sorted_iterate():
             if not node.executed:
                 async_results[node] = node.run()
-        results = {}
+            else:
+                results[node] = node._results
+
         while async_results:
             delnodes = []
             for (node, async_result) in async_results.items():
@@ -682,10 +691,10 @@ class IOGraph(Document):
             time.sleep(0.3)
             for node in delnodes:
                 del async_results[node]
-            
+
         return results
 
     def save_all(self):
         self.save(cascade=True)
-    
+
 
