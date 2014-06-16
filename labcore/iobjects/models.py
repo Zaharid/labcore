@@ -16,6 +16,7 @@ from IPython.utils.traitlets import (Bool, Any, Unicode, Enum, Instance, Int,
 from IPython.html import widgets
 from IPython.display import display
 
+
 from bson import objectid
 
 import networkx
@@ -26,9 +27,9 @@ from labcore.mongotraits import (Document, EmbeddedDocument,
     
 from labcore.widgets.widgetrepr import WidgetRepresentation
 
-from labcore.iobjects.utils import (add_child, widget_mapping, param_types,
+from labcore.iobjects.utils import (add_child, param_types,
                                      )
-
+from labcore.iobjects import parallel_client
 
 
 class IObjectError(Exception):
@@ -290,6 +291,8 @@ class IONode(Document):
     _iobject = Instance(IObject, db=False, widget = None)
     _iobject_key = Unicode(widget = None)
     _iobject_class = Unicode(widget = None)
+    
+    
     name = Unicode()
 
     inputs = TList(Instance(InputMirror))
@@ -298,10 +301,12 @@ class IONode(Document):
     inlinks = TList(Instance(Link))
     outlinks = TList(Instance(Link))
 
-    gui_order = Int()
-    executed = Bool()
-    failed = Bool()
-    has_widget = Bool(default_value = False, db = False)
+    executed = Bool(widget = None)
+    failed = Bool(widget = None)
+    has_widget = Bool(default_value = False, db = False, widget = None)
+    
+    runaddress = Enum(values = parallel_client.client_map.keys(), 
+                      default_value = 'local', allow_none = False)
 
     @property
     def iobject(self):
@@ -405,11 +410,27 @@ class IONode(Document):
             self.widget.add_class('executed')
         else:
             self.widget.remove_class('executed')
+    
+    def _runnode(self,**params):
+        if self.runaddress:
+            if parallel_client.client:
+                targets = parallel_client.targets(self.runaddress)
+                v = parallel_client.view
+                with v.temp_flags(targets = targets):
+                    asyncresults = v.apply(self.iobject.__call__, **params)
+                
+            else:
+                raise IObjectError("Need to connect a client to run on a runaddress")
+        else:
+            raise IObjectError("Need to connect a client to run on a runaddress")
+            #results = self.iobject.__call__(**params)
+        return asyncresults
 
 
     def run(self, **kwargs):
         params = dict(kwargs)
         runinfo = RunInfo()
+        
 
         for inlink in self.inlinks:
             if inlink.fr_output.name in kwargs:
