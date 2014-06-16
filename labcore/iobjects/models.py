@@ -8,6 +8,7 @@ Created on Tue Feb 11 17:18:00 2014
 
 import inspect
 import weakref
+import time
 
 from IPython.utils.py3compat import string_types, PY3
 from IPython.utils import traitlets
@@ -674,10 +675,11 @@ class IOGraph(Document):
             delnodes = []
             for (node, async_result) in async_results.items():
                 if async_result.ready():
-                    r = async_result.result()
+                    r = async_result.result
                     results[node] = r
-                    node.on_results(r)
-                    delnodes.append[node]
+                    node.on_result(r)
+                    delnodes.append(node)
+            time.sleep(0.3)
             for node in delnodes:
                 del async_results[node]
             
